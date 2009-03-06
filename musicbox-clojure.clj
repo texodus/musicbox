@@ -35,7 +35,7 @@
 ;;;; Common
 
 (defstruct note :duration :pitch)
-(defstruct grammar :rhyme :harmony :instrument :children)
+(defstruct grammar :key-seq :rhyme :harmony :instrument :children)
 
 (defn != 
   [a b] 
@@ -61,9 +61,13 @@
               (list form x)))
   ([x form & more] `(--> (--> ~x ~form) ~@more)))
 
-(defn pair-off 
+(defn pair-off
   [x y]
   (partition 2 (interleave x y)))
+
+(defn pair-offset 
+  [current-key x y]
+  (pair-off (drop current-key (take (+ (count x) current-key) (cycle x))) y))
 
 (defn- voice-length 
   "Determine the total duration of a vector of notes"
@@ -74,13 +78,13 @@
   "Modulate a list of notes to be a specific (longer) total duration"
   [length voice] 
   (let [head (first voice) 
-	tail (rest (cycle voice))]
+        tail (rest (cycle voice))]
     (if (< (head :duration) length)
       (cons head 
-	    (resize-voice (- length (head :duration)) tail))
+            (resize-voice (- length (head :duration)) tail))
       (vector (struct note 
-		      length 
-		      (head :pitch))))))
+                      length 
+                      (head :pitch))))))
 
 (defn- longest
   "Determines the voice with the longest total duration"
@@ -110,8 +114,8 @@
 
 (defn- harmonize-down 
   "Harmonize a sequence of harmonies"
-  [& harmonies]
-  (reduce #(for [pair (pair-off %1 %2)] 
+  [current-key & harmonies]
+  (reduce #(for [pair (pair-offset current-key %1 %2)] 
 	     (apply xor pair)) 
 	  harmonies))
 
@@ -121,9 +125,15 @@
 
 (defn- synchronize-down 
   "Synchronize a sequence of rhymes" 
-  [parent-key rhyme] 
-  (nth (cycle rhyme) 
-       parent-key))
+  [current-key & rhymes] 
+  (filter identity 
+          (reduce #(concat (for [duration %1]
+                             (if (not ((set %2) duration))
+                               duration))
+                           (for [duration %2]
+                             (if (not ((set %1) duration))
+                             duration)))
+                  rhymes)))
 
 (defn- synchronize-up 
   "Synchronize a sequence of voices (they must be the same length)"
@@ -139,12 +149,15 @@
 
 (defn- new-voice 
   "Compose a new voice"
-  [parent-key new-key new-harmony]
+  [current-key new-rhyme new-harmony]
   [(struct note 
-           new-key 
+           (nth (cycle (if (empty? new-rhyme) 
+                         [1]
+                         new-rhyme))
+                         current-key) 
            (-> (filter second (pair-off (iterate inc 0) new-harmony)) 
                cycle 
-               (nth (+ new-key parent-key)) 
+               (nth current-key) 
                first))])
 
 ; The main composition function walks the tree and calls the harmonize and 
@@ -152,15 +165,17 @@
 
 (defn compose 
   "Compose a grammar tree into a vector voices"
-  ([grammar] (compose (count (grammar :rhyme)) 
-                      (apply vector (take 12 (repeat false))) 
-                      grammar))
-  ([inherited-key inherited-harmony {:keys [children rhyme harmony instrument]}]
-     (splice (for [current-key (take inherited-key (cycle rhyme))]
-               (let [current-harmony (harmonize-down inherited-harmony harmony) 
-                     current-rhyme (synchronize-down inherited-key rhyme)
+  ([grammar] 
+     (compose (count (grammar :key-seq)) 
+              (apply vector (take 12 (repeat false)))
+              []
+              grammar))
+  ([inherited-key inherited-harmony inherited-rhyme {:keys [key-seq children rhyme harmony instrument]}]
+     (splice (for [current-key (take inherited-key (cycle key-seq))]
+               (let [current-harmony (harmonize-down current-key inherited-harmony harmony) 
+                     current-rhyme (synchronize-down current-key inherited-rhyme rhyme)
                      voices (--> children
-                                 (map #(compose current-key current-harmony %))
+                                 (map #(compose current-key current-harmony current-rhyme %))
                                  (apply concat))]
                  (-> (if instrument
                        (conj voices (new-voice current-key current-rhyme current-harmony)) 
@@ -207,7 +222,7 @@
   [string]
   (let [pattern (Pattern. string)
         parser (MusicStringParser.)
-        renderer (MidiRenderer. 0 250)]
+        renderer (MidiRenderer. 0 500)]
     (do
       (. System/out println string)
       (. parser (addParserListener renderer))
@@ -231,36 +246,35 @@
       build-midi 
       play-midi))
 
-
-
-
-
-
-
 ;;;; Sample Song 
 
 (comment
+  (load-file "musicbox-clojure.clj")
   (play (struct grammar 
-                [1 2 2 5 2 1] 
+                [1 3 2 4 1]
+                [1 2 3 5] 
                 [true false false false 
                  true false false false 
                  false true false true]
                 false
                 [(struct grammar
-                         [1 3 1 4 1]
+                         [2 2 1 3 1]
+                         [2 4]
                          [false true false false 
                           false true false false 
                           true false false false]
-                         false
+                         true
                          [(struct grammar
-                                  [4 3 2 1 2]
+                                  [2 1 3]
+                                  [1 2 4 5]
                                   [false true false true 
                                    true false false false 
                                    true false true false]
                                   true
                                   [])])
                  (struct grammar
-                         [1 2 1 5 1]
+                         [1 1 5 1]
+                         [1 2 4 5]
                          [false false true false 
                           false true false false 
                           false false true false]
