@@ -26,8 +26,8 @@
 
 (ns musicbox
   (:import [javax.sound.midi MidiSystem Sequencer Sequence Synthesizer]
-	   [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm]
-	   [java.io File BufferedReader InputStreamReader])
+           [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm]
+           [java.io File BufferedReader InputStreamReader])
   (:use [clojure.contrib.str-utils :only (str-join)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -90,15 +90,15 @@
      (if (= (count voices) 0)
        top
        (if (< (voice-length top) (voice-length (first voices)))
-	 (longest (first voices) (rest voices))
-	 (longest top (rest voices))))))
+         (longest (first voices) (rest voices))
+         (longest top (rest voices))))))
 
 (defn- splice 
   "Join together a sequence of meters"
   [meters] 
   (reduce #(for [x (pair-off %1 %2)] 
-	     (apply into x)) 
-	  meters))
+             (apply into x)) 
+          meters))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
@@ -129,9 +129,9 @@
   "Synchronize a sequence of voices (they must be the same length)"
   [voices]
   (map #(-> voices 
-	    longest 
-	    voice-length 
-	    (resize-voice %))  
+            longest 
+            voice-length 
+            (resize-voice %))  
        (filter identity voices)))
 
 ; Determines what a new voice looks like - this is the first conversion 
@@ -141,11 +141,11 @@
   "Compose a new voice"
   [parent-key new-key new-harmony]
   [(struct note 
-	   new-key 
-	   (-> (filter second (pair-off (iterate inc 0) new-harmony)) 
-	       cycle 
-	       (nth (+ new-key parent-key)) 
-	       first))])
+           new-key 
+           (-> (filter second (pair-off (iterate inc 0) new-harmony)) 
+               cycle 
+               (nth (+ new-key parent-key)) 
+               first))])
 
 ; The main composition function walks the tree and calls the harmonize and 
 ; synchronize functions when necessary
@@ -153,20 +153,20 @@
 (defn compose 
   "Compose a grammar tree into a vector voices"
   ([grammar] (compose (count (grammar :rhyme)) 
-		      (apply vector (take 12 (repeat false))) 
-		      grammar))
+                      (apply vector (take 12 (repeat false))) 
+                      grammar))
   ([inherited-key inherited-harmony {:keys [children rhyme harmony instrument]}]
      (splice (for [current-key (take inherited-key (cycle rhyme))]
-	       (let [current-harmony (harmonize-down inherited-harmony harmony) 
-		     current-rhyme (synchronize-down inherited-key rhyme)
-		     voices (--> children
-				 (map #(compose current-key current-harmony %))
-				 (apply concat))]
-		 (-> (if instrument
-		       (conj voices (new-voice current-key current-rhyme current-harmony)) 
-		       voices) 
-		     harmonize-up 
-		     synchronize-up))))))
+               (let [current-harmony (harmonize-down inherited-harmony harmony) 
+                     current-rhyme (synchronize-down inherited-key rhyme)
+                     voices (--> children
+                                 (map #(compose current-key current-harmony %))
+                                 (apply concat))]
+                 (-> (if instrument
+                       (conj voices (new-voice current-key current-rhyme current-harmony)) 
+                       voices) 
+                     harmonize-up 
+                     synchronize-up))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
@@ -176,40 +176,43 @@
      ["A" "A#" "B" "C"
       "C#" "D" "D#" "E"
       "F" "F#" "G" "G#"])
+
+; These functions build a JFugue MusicString from note vectors
  
 (defn- note-string 
   [note octave]
   (let [note-str (nth note-table (note :pitch))]
     (str note-str
-	 (if (!= note-str "R") (+ octave 2))
-	 (apply str (take (note :duration) 
-			  (repeat "q"))))))
+         (if (!= note-str "R") (+ octave 2))
+         (apply str (take (note :duration) 
+                          (repeat "q"))))))
 
 (defn- voice-string 
   [voice octave]
   (str-join \ 
-	    (map #(note-string % octave) 
-		 voice)))
+            (map #(note-string % octave) 
+                 voice)))
 
 (defn- build-string 
   [voices]
   (str-join \ (for [voice (pair-off voices (iterate inc 1))]
-		(str \v 
-		     (second voice) 
-		     \ 
-		     (voice-string (first voice) (second voice))))))
+                (str \v 
+                     (second voice) 
+                     \ 
+                     (voice-string (first voice) (second voice))))))
+
+;  MIDI and JFugue utility functions
 
 (defn- build-midi 
   [string]
   (let [pattern (Pattern. string)
-	parser (MusicStringParser.)
-	renderer (MidiRenderer. 0 250)]
+        parser (MusicStringParser.)
+        renderer (MidiRenderer. 0 250)]
     (do
       (. System/out println string)
       (. parser (addParserListener renderer))
       (. parser (parse pattern))
       (. renderer getSequence))))
-
 
 (defn- play-midi 
   [midi]
@@ -229,35 +232,40 @@
       play-midi))
 
 
+
+
+
+
+
 ;;;; Sample Song 
 
 (comment
   (play (struct grammar 
-		[1 2 2 5 2 1] 
-		[true false false false 
-		 true false false false 
-		 false true false true]
-		false
-		[(struct grammar
-			 [1 3 1 4 1]
-			 [false true false false 
-			  false true false false 
-			  true false false false]
-			 false
-			 [(struct grammar
-				  [4 3 2 1 2]
-				  [false true false true 
-				   true false false false 
-				   true false true false]
-				  true
-				  [])])
-		 (struct grammar
-			 [1 2 1 5 1]
-			 [false false true false 
-			  false true false false 
-			  false false true false]
-			 true
-			 [])]))
+                [1 2 2 5 2 1] 
+                [true false false false 
+                 true false false false 
+                 false true false true]
+                false
+                [(struct grammar
+                         [1 3 1 4 1]
+                         [false true false false 
+                          false true false false 
+                          true false false false]
+                         false
+                         [(struct grammar
+                                  [4 3 2 1 2]
+                                  [false true false true 
+                                   true false false false 
+                                   true false true false]
+                                  true
+                                  [])])
+                 (struct grammar
+                         [1 2 1 5 1]
+                         [false false true false 
+                          false true false false 
+                          false false true false]
+                         true
+                         [])]))
 )
 
 
