@@ -41,33 +41,13 @@
   [a b] 
   (not (= a b)))
 
-(defn xor 
-  [& args]
-  (-> (filter identity args) count odd?))
-
 (defn pause 
   [] 
   (-> *in* BufferedReader. .readLine))
 
-(defn if-conj 
-  [pred? one all]
-  (if pred?
-    (conj all  one)
-    all))
-
-(defmacro -->
-  ([x form] (if (seq? form)
-              `(~@form ~x)
-              (list form x)))
-  ([x form & more] `(--> (--> ~x ~form) ~@more)))
-
 (defn pair-off
   [x y]
   (partition 2 (interleave x y)))
-
-(defn pair-offset 
-  [current-key x y]
-  (pair-off (drop current-key (take (+ (count x) current-key) (cycle x))) y))
 
 (defn- voice-length 
   "Determine the total duration of a vector of notes"
@@ -76,12 +56,12 @@
 
 (defn- resize-voice 
   "Modulate a list of notes to be a specific (longer) total duration"
-  [length voice] 
+  [voice length] 
   (let [head (first voice) 
         tail (rest (cycle voice))]
     (if (< (head :duration) length)
       (cons head 
-            (resize-voice (- length (head :duration)) tail))
+            (resize-voice tail (- length (head :duration))))
       (vector (struct note 
                       length 
                       (head :pitch))))))
@@ -100,7 +80,7 @@
 (defn- splice 
   "Join together a sequence of meters"
   [meters] 
-  (reduce #(for [x (pair-off %1 %2)] 
+  (reduce #(for [x (partition 2 (interleave %1 %2))] 
              (apply into x)) 
           meters))
 
@@ -108,95 +88,51 @@
 ;;;;
 ;;;; Composition
 
-; These Functions determine the characteristics of the composition by defining 
-; operations for harmonizing (pitch) and synchronizing (rhythm) a walk of a 
-; grammar tree.  Change them for fun & profit! 
+; These Functions determine the characteristics of the composition by defining
+; how nodes affect the harmony and rhythm of their children.  Change them for
+; fun & profit!
 
-(defn- harmonize-down 
-  "Harmonize a sequence of harmonies"
-  [current-key & harmonies]
-  (reduce #(for [pair (pair-offset current-key %1 %2)] 
-	     (apply xor pair)) 
-	  harmonies))
+(defn- synch-down 
+  "Synchronize a sequence of note elements" 
+  [current-key & xs] 
+  (let [x (apply concat xs)]
+    (take (count x)
+	  (drop current-key 
+		(cycle x)))))
 
-(defn- harmonize-up 
-  "Harmonize a sequence of voices"
-  [voices] voices)
-
-(defn- synchronize-down 
-  "Synchronize a sequence of rhymes" 
-  [current-key & rhymes] 
-  (filter identity 
-          (reduce #(concat (for [duration %1]
-                             (if (not ((set %2) duration))
-                               duration))
-                           (for [duration %2]
-                             (if (not ((set %1) duration))
-                             duration)))
-                  rhymes)))
-
-(defn- synchronize-up 
+(defn- synch-up 
   "Synchronize a sequence of voices (they must be the same length)"
   [voices]
-  (map #(-> voices 
-            longest 
-            voice-length 
-            (resize-voice %))  
-       (filter identity voices)))
+  (let [max-voice (voice-length (longest voices))]
+    (for [voice (filter #(-> % empty? not) voices)]
+      (resize-voice voice max-voice))))
 
-; Determines what a new voice looks like - this is the first conversion 
-; from grammar to concrete note
+; The main composition function walks the tree and calls the synchronize 
+; functions when necessary
 
-(defn- new-voice 
-  "Compose a new voice"
-  [current-key new-rhyme new-harmony]
-  [(struct note 
-           (nth (cycle (if (empty? new-rhyme) 
-                         [1]
-                         new-rhyme))
-                         current-key) 
-           (-> (filter second (pair-off (iterate inc 0) new-harmony)) 
-               cycle 
-               (nth current-key) 
-               first))])
-
-; The main composition function walks the tree and calls the harmonize and 
-; synchronize functions when necessary
-
-(defn compose 
-  "Compose a grammar tree into a vector voices"
-  ([grammar] 
-     (compose (count (grammar :key-seq)) 
-              (apply vector (take 12 (repeat false)))
-              []
-              grammar))
-  ([inherited-key inherited-harmony inherited-rhyme {:keys [key-seq children rhyme harmony instrument]}]
-     (splice (for [current-key (take inherited-key (cycle key-seq))]
-               (let [current-harmony (harmonize-down current-key inherited-harmony harmony) 
-                     current-rhyme (synchronize-down current-key inherited-rhyme rhyme)
-                     voices (--> children
-                                 (map #(compose current-key current-harmony current-rhyme %))
-                                 (apply concat))]
-                 (-> (if instrument
-                       (conj voices (new-voice current-key current-rhyme current-harmony)) 
-                       voices) 
-                     harmonize-up 
-                     synchronize-up))))))
+(defn compose
+  "Does the actual work of the composing a grammar tree into a vector of voices"
+  [{:keys [key-seq children rhyme harmony instrument]}]
+  (splice (for [current-key key-seq] 
+            (synch-up (conj (apply concat
+                                   (for [child children]
+                                     (compose (assoc child 
+                                                :harmony (synch-down current-key harmony (:harmony child))
+                                                :rhyme (synch-down current-key rhyme (:rhyme child))))))
+                            (if instrument
+                              (vector (struct note 
+                                              (first (drop current-key (cycle rhyme)))
+                                              (first (drop current-key (cycle harmony)))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; MIDI
 
-(def note-table 
-     ["A" "A#" "B" "C"
-      "C#" "D" "D#" "E"
-      "F" "F#" "G" "G#"])
-
 ; These functions build a JFugue MusicString from note vectors
  
 (defn- note-string 
   [note octave]
-  (let [note-str (nth note-table (note :pitch))]
+  (let [note-str (note :pitch)]
     (str note-str
          (if (!= note-str "R") (+ octave 2))
          (apply str (take (note :duration) 
@@ -250,37 +186,31 @@
 
 (comment
   (load-file "musicbox-clojure.clj")
+)
+
   (play (struct grammar 
                 [1 3 2 4 1]
                 [1 2 3 5] 
-                [true false false false 
-                 true false false false 
-                 false true false true]
+                ["D" "F" "A" "R" "B"]
                 false
                 [(struct grammar
                          [2 2 1 3 1]
                          [2 4]
-                         [false true false false 
-                          false true false false 
-                          true false false false]
+                         ["E" "G" "R" "A" "F"]
                          true
                          [(struct grammar
                                   [2 1 3]
                                   [1 2 4 5]
-                                  [false true false true 
-                                   true false false false 
-                                   true false true false]
+                                  ["A" "R" "R" "B" "D" "G"]
                                   true
                                   [])])
                  (struct grammar
                          [1 1 5 1]
                          [1 2 4 5]
-                         [false false true false 
-                          false true false false 
-                          false false true false]
+                         ["C" "R" "D" "E" "R" "F"]
                          true
                          [])]))
-)
+
 
 
 
