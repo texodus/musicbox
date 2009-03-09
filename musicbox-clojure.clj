@@ -28,17 +28,21 @@
   (:import [javax.sound.midi MidiSystem Sequencer Sequence Synthesizer]
            [java.io File BufferedReader InputStreamReader]
            [java.awt.event ActionListener]
-	   [java.util Random]
+           [java.util Random]
            [javax.swing JPanel JFrame JLabel JButton JSlider]
            [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm])
   (:use [clojure.contrib.str-utils :only (str-join)]))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;
-;;;; Common
 
 (defstruct note :duration :pitch)
 (defstruct grammar :key-seq :rhyme :harmony :instrument :children)
+(defstruct setting :min :max :default :current)
+
+;(def speed-setting (ref (struct setting 200 700 450)))
+;(def sparsity (ref (struct setting 0 9 3)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Common
 
 (defn != 
   [a b] 
@@ -60,7 +64,7 @@
 (defn- resize-voice 
   "Modulate a list of notes to be a specific (longer) total duration"
   [voice length] 
-  (let [head (first voice) 
+    (let [head (first voice) 
         tail (rest (cycle voice))]
     (if (< (head :duration) length)
       (cons head (resize-voice tail (- length (head :duration))))
@@ -105,7 +109,9 @@
   [voices]
   (let [max-voice (voice-length (longest voices))]
     (for [voice (filter #(-> % empty? not) voices)]
-      (resize-voice voice max-voice))))
+      (if (< (count voice) 2)
+        (vector (struct note max-voice ((first voice) :pitch)))
+        (resize-voice voice max-voice)))))
 
 ; The main composition function walks the tree and calls the synchronize 
 ; functions when necessary
@@ -129,30 +135,36 @@
 ;;;; Style
 
 (def note-table ["A" "A#" "B" "C"
-		 "C#" "D" "D#" "E"
-		 "F" "F#" "G" "G#"])
+                 "C#" "D" "D#" "E"
+                 "F" "F#" "G" "G#"])
 		 
 (defn generate-grammar
   "Build a semi-random grammar"
   [depth]
   (let [random (Random.)
-	rnd (fn [range offset] (+ offset (. random (nextInt range))))]
+        rnd (fn [range offset] (+ offset (. random (nextInt range))))]
     (struct grammar
-	    (take (rnd 3 2) 
-		  (iterate (fn [_] (rnd 6 1)) 
-			   (rnd 4 2)))
-	    (take (rnd 3 2)
-		  (iterate (fn [_] (rnd 6 1))
-			   (rnd 4 2)))
-	    (take (rnd 4 2)
-		  (iterate (fn [_] (nth note-table (rnd 12 0)))
-			   (nth note-table (rnd 12 0))))
-	    (if (< depth 2)
-	      true
-	      false)
-	    (if (> depth 0)
-	      (vector (generate-grammar (dec depth)))
-	      (vector)))))
+            (take (rnd 3 2) 
+                  (iterate (fn [_] (rnd 6 1)) 
+                           (rnd 6 1)))
+            (if (< depth 2)
+              (take (rnd 3 1)
+                    (iterate (fn [_] (rnd 3 1))
+                             (rnd 3 1)))
+              (take (rnd 3 2)
+                    (iterate (fn [_] (rnd 6 1))
+                             (rnd 6 1))))
+            (take (rnd 4 2)
+                  (iterate (fn [_] (if (> (rnd 6 0) 3) 
+                                     (nth note-table (rnd 12 0))
+                                     "R"))
+                           (nth note-table (rnd 12 0))))
+            (if (< depth 2)
+              true
+              false)
+            (if (> depth 0)
+              (vector (generate-grammar (dec depth)))
+              (vector)))))
 			   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
@@ -180,12 +192,14 @@
                      \ (voice-string (first voice) (second voice))))))
 
 ;  MIDI and JFugue utility functions
+(def player-run-flag
+     (atom false))
 
 (defn- build-midi 
   [string]
   (let [pattern (Pattern. string)
         parser (MusicStringParser.)
-        renderer (MidiRenderer. 0 350)]
+        renderer (MidiRenderer. 0 1000)]
     (do
       (. System/out println string)
       (. parser (addParserListener renderer))
@@ -198,8 +212,10 @@
               seqr (doto (. MidiSystem (getSequencer false)) (.open))]
       (do (.setReceiver (.getTransmitter seqr) (.getReceiver synth))
           (.setSequence seqr midi)
+          (reset! player-run-flag true)
           (.start seqr)
-          (while (.isRunning seqr) (. Thread (sleep 500)))
+          (while (and @player-run-flag (.isRunning seqr)) 
+            (. Thread (sleep 500)))
           (.println System/out "Finished"))))
 
 (defn play 
@@ -216,7 +232,7 @@
 
 (defn play-song 
   [_]
-  (play (generate-grammar 3)))
+  (play (generate-grammar 4)))
 
 (def player-agent
      (agent nil))
@@ -226,7 +242,8 @@
        (.add (doto (JButton. "Reset")
                (.addActionListener (proxy [ActionListener] []
                                      (actionPerformed [actionEvent]
-                                                      (send-off player-agent play-song))))))
+                                                      (do (reset! player-run-flag false)
+                                                          (send-off player-agent play-song)))))))
        (.add (JSlider.))))           
 
 (def frame 
