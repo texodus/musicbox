@@ -26,8 +26,11 @@
 
 (ns musicbox
   (:import [javax.sound.midi MidiSystem Sequencer Sequence Synthesizer]
-           [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm]
-           [java.io File BufferedReader InputStreamReader])
+           [java.io File BufferedReader InputStreamReader]
+           [java.awt.event ActionListener]
+	   [java.util Random]
+           [javax.swing JPanel JFrame JLabel JButton JSlider]
+           [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm])
   (:use [clojure.contrib.str-utils :only (str-join)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -60,11 +63,8 @@
   (let [head (first voice) 
         tail (rest (cycle voice))]
     (if (< (head :duration) length)
-      (cons head 
-            (resize-voice tail (- length (head :duration))))
-      (vector (struct note 
-                      length 
-                      (head :pitch))))))
+      (cons head (resize-voice tail (- length (head :duration))))
+      (vector (struct note length (head :pitch))))))
 
 (defn- longest
   "Determines the voice with the longest total duration"
@@ -111,7 +111,7 @@
 ; functions when necessary
 
 (defn compose
-  "Does the actual work of the composing a grammar tree into a vector of voices"
+  "Does the actual work of composing a grammar tree into a vector of voices"
   [{:keys [key-seq children rhyme harmony instrument]}]
   (splice (for [current-key key-seq] 
             (synch-up (conj (apply concat
@@ -124,6 +124,36 @@
                                               (first (drop current-key (cycle rhyme)))
                                               (first (drop current-key (cycle harmony)))))))))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Style
+
+(def note-table ["A" "A#" "B" "C"
+		 "C#" "D" "D#" "E"
+		 "F" "F#" "G" "G#"])
+		 
+(defn generate-grammar
+  "Build a semi-random grammar"
+  [depth]
+  (let [random (Random.)
+	rnd (fn [range offset] (+ offset (. random (nextInt range))))]
+    (struct grammar
+	    (take (rnd 3 2) 
+		  (iterate (fn [_] (rnd 6 1)) 
+			   (rnd 4 2)))
+	    (take (rnd 3 2)
+		  (iterate (fn [_] (rnd 6 1))
+			   (rnd 4 2)))
+	    (take (rnd 4 2)
+		  (iterate (fn [_] (nth note-table (rnd 12 0)))
+			   (nth note-table (rnd 12 0))))
+	    (if (< depth 2)
+	      true
+	      false)
+	    (if (> depth 0)
+	      (vector (generate-grammar (dec depth)))
+	      (vector)))))
+			   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; MIDI
@@ -140,17 +170,14 @@
 
 (defn- voice-string 
   [voice octave]
-  (str-join \ 
-            (map #(note-string % octave) 
-                 voice)))
+  (str-join \ (map #(note-string % octave) voice)))
 
 (defn- build-string 
   [voices]
   (str-join \ (for [voice (pair-off voices (iterate inc 1))]
-                (str \v 
-                     (second voice) 
-                     \ 
-                     (voice-string (first voice) (second voice))))))
+                (str \v (second voice) 
+                     \ "Rww" 
+                     \ (voice-string (first voice) (second voice))))))
 
 ;  MIDI and JFugue utility functions
 
@@ -158,7 +185,7 @@
   [string]
   (let [pattern (Pattern. string)
         parser (MusicStringParser.)
-        renderer (MidiRenderer. 0 500)]
+        renderer (MidiRenderer. 0 350)]
     (do
       (. System/out println string)
       (. parser (addParserListener renderer))
@@ -172,7 +199,8 @@
       (do (.setReceiver (.getTransmitter seqr) (.getReceiver synth))
           (.setSequence seqr midi)
           (.start seqr)
-          (pause))))
+          (while (.isRunning seqr) (. Thread (sleep 500)))
+          (.println System/out "Finished"))))
 
 (defn play 
   [grammar]
@@ -182,37 +210,35 @@
       build-midi 
       play-midi))
 
-;;;; Sample Song 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; GUI
 
+(defn play-song 
+  [_]
+  (play (generate-grammar 3)))
+
+(def player-agent
+     (agent nil))
+
+(def panel 
+     (doto (JPanel.)
+       (.add (doto (JButton. "Reset")
+               (.addActionListener (proxy [ActionListener] []
+                                     (actionPerformed [actionEvent]
+                                                      (send-off player-agent play-song))))))
+       (.add (JSlider.))))           
+
+(def frame 
+     (doto (JFrame.)
+       (.setTitle "Clojure Music Box")
+       (.setDefaultCloseOperation (. JFrame EXIT_ON_CLOSE))
+       (.add panel)
+       (.setResizable false)
+       .pack 
+       .show))
+
+;;;; emacs
 (comment
   (load-file "musicbox-clojure.clj")
 )
-
-  (play (struct grammar 
-                [1 3 2 4 1]
-                [1 2 3 5] 
-                ["D" "F" "A" "R" "B"]
-                false
-                [(struct grammar
-                         [2 2 1 3 1]
-                         [2 4]
-                         ["E" "G" "R" "A" "F"]
-                         true
-                         [(struct grammar
-                                  [2 1 3]
-                                  [1 2 4 5]
-                                  ["A" "R" "R" "B" "D" "G"]
-                                  true
-                                  [])])
-                 (struct grammar
-                         [1 1 5 1]
-                         [1 2 4 5]
-                         ["C" "R" "D" "E" "R" "F"]
-                         true
-                         [])]))
-
-
-
-
-
-
