@@ -34,12 +34,11 @@
   (:use [clojure.contrib.str-utils :only (str-join)]))
 
 
-(defstruct note :duration :pitch)
-(defstruct grammar :key-seq :rhyme :harmony :instrument :children)
+(defstruct note :duration :pitch :velocity)
+(defstruct grammar :key-seq :rhyme :harmony :velocity :instrument :children)
+(defstruct voice :instrument :notes)
 (defstruct setting :min :max :default :current)
 
-;(def speed-setting (ref (struct setting 200 700 450)))
-;(def sparsity (ref (struct setting 0 9 3)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Common
@@ -58,17 +57,21 @@
 
 (defn- voice-length 
   "Determine the total duration of a vector of notes"
-  [notes]
-  (reduce + (map :duration notes)))
+  [voice]
+  (if voice
+    (reduce + (map :duration (voice :notes)))
+    0))
 
 (defn- resize-voice 
   "Modulate a list of notes to be a specific (longer) total duration"
   [voice length] 
-    (let [head (first voice) 
-        tail (rest (cycle voice))]
-    (if (< (head :duration) length)
-      (cons head (resize-voice tail (- length (head :duration))))
-      (vector (struct note length (head :pitch))))))
+  (assoc voice 
+    :notes (let [head (first (voice :notes)) 
+                 tail (assoc voice 
+                        :notes (rest (cycle (voice :notes))))]
+             (if (< (head :duration) length)
+               (cons head ((resize-voice tail (- length (head :duration))) :notes))
+               (vector (struct note length (head :pitch) (head :velocity)))))))
 
 (defn- longest
   "Determines the voice with the longest total duration"
@@ -77,7 +80,8 @@
   ([top voices] 
      (if (= (count voices) 0)
        top
-       (if (< (voice-length top) (voice-length (first voices)))
+       (if (< (voice-length top) 
+              (voice-length (first voices)))
          (longest (first voices) (rest voices))
          (longest top (rest voices))))))
 
@@ -85,7 +89,8 @@
   "Join together a sequence of meters"
   [meters] 
   (reduce #(for [x (partition 2 (interleave %1 %2))] 
-             (apply into x)) 
+             (assoc (first x) 
+               :notes (apply into (map :notes x)))) 
           meters))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -108,9 +113,13 @@
   "Synchronize a sequence of voices (they must be the same length)"
   [voices]
   (let [max-voice (voice-length (longest voices))]
-    (for [voice (filter #(-> % empty? not) voices)]
-      (if (< (count voice) 2)
-        (vector (struct note max-voice ((first voice) :pitch)))
+    (for [voice (filter #(-> % identity :notes empty? not) voices)]
+      (if (< (count (voice :notes)) 2)
+        (assoc voice 
+          :notes (vector (struct note 
+                                 max-voice 
+                                 ((first (voice :notes)) :pitch) 
+                                 ((first (voice :notes)) :velocity))))
         (resize-voice voice max-voice)))))
 
 ; The main composition function walks the tree and calls the synchronize 
@@ -118,17 +127,21 @@
 
 (defn compose
   "Does the actual work of composing a grammar tree into a vector of voices"
-  [{:keys [key-seq children rhyme harmony instrument]}]
+  [{:keys [key-seq children rhyme harmony velocity instrument]}]
   (splice (for [current-key key-seq] 
             (synch-up (conj (apply concat
                                    (for [child children]
                                      (compose (assoc child 
                                                 :harmony (synch-down current-key harmony (:harmony child))
-                                                :rhyme (synch-down current-key rhyme (:rhyme child))))))
-                            (if instrument
-                              (vector (struct note 
-                                              (first (drop current-key (cycle rhyme)))
-                                              (first (drop current-key (cycle harmony)))))))))))
+                                                :rhyme (synch-down current-key rhyme (:rhyme child))
+                                                :velocity (synch-down current-key velocity (:velocity child))))))
+                            (if instrument 
+                              (struct voice 
+                                      instrument
+                                      (vector (struct note 
+                                                      (first (drop current-key (cycle rhyme)))
+                                                      (first (drop current-key (cycle harmony)))
+                                                      (first (drop current-key (cycle velocity))))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
@@ -137,34 +150,49 @@
 (def note-table ["A" "A#" "B" "C"
                  "C#" "D" "D#" "E"
                  "F" "F#" "G" "G#"])
+
+(def bass-instrument-table ["Rock_Organ" "Tubular_Bells"
+                            "Orchestra_Hit" "Synth_Voice"
+                            "Synth_Bass_1" "Woodblock"])
+
+(def lead-instrument-table ["Violin" "Piano" 
+                            "Alto_Sax" "Synthbrass_1"
+                            "Flute" "Sawtooth"
+                            "Orchestral_Strings"])
 		 
 (defn generate-grammar
   "Build a semi-random grammar"
   [depth]
   (let [random (Random.)
         rnd (fn [range offset] (+ offset (. random (nextInt range))))]
-    (struct grammar
-            (take (rnd 3 2) 
-                  (iterate (fn [_] (rnd 6 1)) 
-                           (rnd 6 1)))
-            (if (< depth 2)
+    {:key-seq (take (rnd 5 2) 
+                    (iterate (fn [_] (rnd 4 1)) 
+                             (rnd 4 1)))
+     :rhyme (if (< depth 2)
               (take (rnd 3 1)
-                    (iterate (fn [_] (rnd 3 1))
-                             (rnd 3 1)))
+                    (iterate (fn [_] (rnd 2 1))
+                             (rnd 2 1)))
               (take (rnd 3 2)
-                    (iterate (fn [_] (rnd 6 1))
-                             (rnd 6 1))))
-            (take (rnd 4 2)
-                  (iterate (fn [_] (if (> (rnd 6 0) 3) 
-                                     (nth note-table (rnd 12 0))
-                                     "R"))
-                           (nth note-table (rnd 12 0))))
-            (if (< depth 2)
-              true
-              false)
-            (if (> depth 0)
-              (vector (generate-grammar (dec depth)))
-              (vector)))))
+                    (iterate (fn [_] (rnd 4 1))
+                             (rnd 4 1))))
+     :harmony (take (rnd 4 2)
+                    (iterate (fn [_] (if (> (rnd 6 0) 2) 
+                                       (nth note-table (rnd 12 0))
+                                       "R"))
+                             (nth note-table (rnd 12 0))))
+     :velocity (take (rnd 3 2)
+                     (iterate (fn [_] (rnd 5 2))
+                              (rnd 5 2)))
+     :instrument (if (< depth 2)
+                   (if (< depth 1)
+                     (lead-instrument-table (rnd (count lead-instrument-table) 0))
+                     (bass-instrument-table (rnd (count bass-instrument-table) 0)))
+                   false)
+     :children (if (> depth 0)
+                 (vector (generate-grammar (dec depth)))
+                 (vector))}))
+
+
 			   
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
@@ -178,18 +206,21 @@
     (str note-str
          (if (!= note-str "R") (+ octave 2))
          (apply str (take (note :duration) 
-                          (repeat "q"))))))
+                          (repeat "q")))
+         "a"
+         (* (note :velocity) 20))))
 
 (defn- voice-string 
   [voice octave]
-  (str-join \ (map #(note-string % octave) voice)))
+  (str "I[" (voice :instrument) "] "
+       (str-join \ (map #(note-string % octave) (voice :notes)))))
 
 (defn- build-string 
   [voices]
-  (str-join \ (for [voice (pair-off voices (iterate inc 1))]
-                (str \v (second voice) 
+  (str-join \ (for [label-voice (pair-off voices (iterate inc 1))]
+                (str \v (second label-voice) 
                      \ "Rww" 
-                     \ (voice-string (first voice) (second voice))))))
+                     \ (voice-string (first label-voice) (second label-voice))))))
 
 ;  MIDI and JFugue utility functions
 (def player-run-flag
@@ -199,7 +230,7 @@
   [string]
   (let [pattern (Pattern. string)
         parser (MusicStringParser.)
-        renderer (MidiRenderer. 0 1000)]
+        renderer (MidiRenderer. 0 600)]
     (do
       (. System/out println string)
       (. parser (addParserListener renderer))
@@ -232,7 +263,7 @@
 
 (defn play-song 
   [_]
-  (play (generate-grammar 4)))
+  (play (generate-grammar 3)))
 
 (def player-agent
      (agent nil))
