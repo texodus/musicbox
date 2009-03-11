@@ -1,0 +1,75 @@
+<project name="Musicbox" default="dist" basedir=".">
+  <description>
+        Musicbox buildfile
+  </description>
+
+  <property name="src" location="src"/>
+  <property name="build" location="build"/>
+  <property name="dist"  location="dist"/>
+  <property name="jarfile" location="musicbox.jar"/>
+
+  <path id="Musicbox.classpath">
+        <pathelement location="~/.clojure/"/>
+	<pathelement location="lib/clojure.jar"/>
+	<pathelement location="lib/clojure-contrib.jar"/>
+	<pathelement location="lib/jfugue-4.0.3.jar"/>
+	<pathelement location="lib/gervill.jar"/>
+	<pathelement location="src"/>
+	<pathelement location="build"/>
+  </path>
+
+  <target name="init">
+    <tstamp/>
+    <mkdir dir="${build}"/>
+  </target>
+
+  <target name="manifest" >
+  <manifest file="${build}/MANIFEST.MF">
+    <attribute name="Built-By" value="Andrew Stein"/>
+    <attribute name="Main-Class" value="org.musicbox.application"/> 
+    <attribute name="Class-Path" value="clojure.jar jfugue-4.0.3.jar gervill.jar"/>
+  </manifest>
+  </target>
+
+
+  <target name="compile_java" depends="init" description="compile the source ">
+    <javac srcdir="${src}" destdir="${build}">
+      <classpath refid="Musicbox.classpath"/>
+    </javac>
+  </target>
+
+ <!-- <target name="test"
+	  description = "Run tests"
+	  if="hasclojure">
+    <java classname="clojure.main">
+      <classpath>
+        <path location="${build}"/>
+        <path location="${src}"/>
+        <path location="${clojure.jar}"/>
+      </classpath>
+      <arg value="src/org/musicbox/tests/test.clj"/>
+    </java>
+  </target> -->
+
+  <target name="compile" depends="init, compile_java" description="Compile Clojure sources.">
+    <java classname="clojure.lang.Compile">
+      <classpath refid="Musicbox.classpath" />
+      <sysproperty key="clojure.compile.path" value="${build}"/>
+      <arg value="org.musicbox.application"/>
+    </java>
+  </target>
+
+ <target name="dist" depends="compile, manifest" description="generate the distribution" >
+    <mkdir dir="${dist}/lib"/>
+    <jar manifest="${build}/MANIFEST.MF" jarfile="${dist}/lib/Musicbox-${DSTAMP}.jar" basedir="${build}"/>
+    <copy includeemptydirs="false" todir="${dist}/lib">
+      <fileset dir="lib"/>
+    </copy>
+  </target>
+
+  <target name="clean" description="clean up" >
+    <delete dir="${build}"/>
+    <delete dir="${dist}"/>
+  </target>
+</project>
+
