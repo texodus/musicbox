@@ -14,6 +14,7 @@
 	<pathelement location="lib/clojure-contrib.jar"/>
 	<pathelement location="lib/jfugue-4.0.3.jar"/>
 	<pathelement location="lib/gervill.jar"/>
+        <pathelement location="lib/jlfgr-1_0.jar"/>
 	<pathelement location="src"/>
 	<pathelement location="build"/>
   </path>
@@ -26,8 +27,8 @@
   <target name="manifest" >
   <manifest file="${build}/MANIFEST.MF">
     <attribute name="Built-By" value="Andrew Stein"/>
-    <attribute name="Main-Class" value="org.musicbox.application"/> 
-    <attribute name="Class-Path" value="clojure.jar jfugue-4.0.3.jar gervill.jar"/>
+    <attribute name="Main-Class" value="org.musicbox.controller"/> 
+    <attribute name="Class-Path" value="clojure.jar jfugue-4.0.3.jar gervill.jar jlfgr-1_0.jar"/>
   </manifest>
   </target>
 
@@ -55,7 +56,9 @@
     <java classname="clojure.lang.Compile">
       <classpath refid="Musicbox.classpath" />
       <sysproperty key="clojure.compile.path" value="${build}"/>
-      <arg value="org.musicbox.application"/>
+      <arg value="org.musicbox.composer"/>
+      <arg value="org.musicbox.midi"/>
+      <arg value="org.musicbox.controller"/>
     </java>
   </target>
 

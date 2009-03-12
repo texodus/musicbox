@@ -2,8 +2,9 @@ Musicbox is a music generating toy written in clojure.
 
 Dependencies:
 JFugue 4.0.3 (http://www.jfugue.org)
+jlfgr-1_0.jar (http://java.sun.com/developer/techDocs/hi/repository/)
 
 Optional:
-Gervill 1.0 (http://gervill.dev.java.net) or some other good javax.midi implementation 
+Gervill 1.0 (http://gervill.dev.java.net) or some other good javax.midi implementation makes things sound much better
 
 
