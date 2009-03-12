@@ -16,7 +16,7 @@
   [note octave]
   (let [note-str (note :pitch)]
     (str note-str
-         (if (!= note-str "R") (+ octave 2))
+        ; (if (!= note-str "R") (+ octave 2))
          (apply str (take (note :duration)
                           (repeat "q")))
          "a"
@@ -54,7 +54,7 @@
           (.setSequence seqr midi)
           (.start seqr)
           (while (and @run-flag-atom (.isRunning seqr))
-            (. Thread (sleep 500))
+            (. Thread (sleep 0))
             (reset! progress-atom (quot (* 100 (. seqr getTickPosition))
                                    (. seqr getTickLength)))
             (. seqr (setTempoFactor @tempo-atom)))

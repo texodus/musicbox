@@ -26,14 +26,15 @@
   (do
     (reset! run-flag true)
     (while @run-flag
-      (play (let [main-grammar (generate-grammar 2)]
-              (struct grammar
-                      [1 1 2 1]
-                      [1]
-                      []
-                      []
-                      false
-                      [main-grammar]))
+      (play (let [main-grammar (generate-grammar 3)]
+              main-grammar)
+             ; (struct grammar
+              ;        [1 1 2 1]
+               ;       [1]
+                ;      ["A1"]
+                 ;     [1]
+                  ;    false
+                   ;   [main-grammar]))
             tempo
             progress
             run-flag))

@@ -37,6 +37,17 @@
   [x y]
   (partition 2 (interleave x y)))
 
+(def pitch-table
+     (map #(apply str %) 
+          (take 120 (pair-off (cycle note-table)
+                              (map #(quot % 12) (iterate inc 0))))))
+
+(def pitch-map 
+    (reduce #(assoc %1 (second %2) (first %2)) 
+            {} 
+            (take 120 (pair-off (iterate inc 0)
+                                pitch-table))))
+
 ;;;; These are utility functions for mising voices
 
 (defn- voice-length 
@@ -87,18 +98,37 @@
 ; how nodes affect the harmony and rhythm of their children.  Change them for
 ; fun & profit!
 
-(defn- synch-down 
-  "Synchronize a sequence of note elements" 
-  [current-key & xs] 
+(defn- synch-harmony-down
+  [current-key & harmonies] 
+  (reduce (fn [harmony1 harmony2]
+            (let [offset (nth (cycle harmony1) current-key)]
+             (for [pitch harmony2]
+               (if (or (= offset "R") (= pitch "R"))
+                 "R"
+                 (nth pitch-table 
+                      (+ (rem (pitch-map pitch) 12)
+                         (pitch-map offset)))))))
+          harmonies))
+             
+(defn- synch-rhythm-down
+  [current-key & xs]
   (let [x (apply concat xs)]
     (take (count x)
 	  (drop current-key 
 		(cycle x)))))
 
+(defn- synch-velocity-down
+  [current-key & xs]
+  (let [x (apply concat xs)]
+    (take (count x)
+	  (drop current-key 
+		(cycle x)))))
+
+
 (defn- synch-up 
   "Synchronize a sequence of voices (they must be the same length)"
   [voices]
-c  (let [max-voice (voice-length (longest voices))]
+  (let [max-voice (voice-length (longest voices))]
     (for [voice (filter #(-> % identity :notes empty? not) voices)]
       (resize-voice voice max-voice))))
 
@@ -112,9 +142,9 @@ c  (let [max-voice (voice-length (longest voices))]
             (synch-up (conj (apply concat
                                    (for [child children]
                                      (compose (assoc child 
-                                                :harmony (synch-down current-key harmony (:harmony child))
-                                                :rhyme (synch-down current-key rhyme (:rhyme child))
-                                                :velocity (synch-down current-key velocity (:velocity child))))))
+                                                :harmony (synch-harmony-down current-key harmony (:harmony child))
+                                                :rhyme (synch-rhythm-down current-key rhyme (:rhyme child))
+                                                :velocity (synch-velocity-down current-key velocity (:velocity child))))))
                             (if instrument 
                               (struct voice 
                                       instrument
@@ -143,13 +173,13 @@ c  (let [max-voice (voice-length (longest voices))]
                     (iterate (fn [_] (rnd 4 1))
                              (rnd 4 1))))
      :harmony (take (rnd 4 2)
-                    (iterate (fn [_] (if (> (rnd 6 0) 1) 
-                                       (nth note-table (rnd 12 0))
+                    (iterate (fn [_] (if (> (rnd 30 0) 1) 
+                                       (nth pitch-table (rnd 12 36))
                                        "R"))
-                             (nth note-table (rnd 12 0))))
+                             (nth pitch-table (rnd 12 24))))
      :velocity (take (rnd 3 2)
-                     (iterate (fn [_] (rnd 5 2))
-                              (rnd 5 2)))
+                     (iterate (fn [_] (rnd 3 4))
+                              (rnd 3 4)))
      :instrument (if (< depth 2)
                    (if (< depth 1)
                      (lead-instrument-table (rnd (count lead-instrument-table) 0))
