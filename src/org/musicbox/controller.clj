@@ -26,16 +26,8 @@
   (do
     (reset! run-flag true)
     (while @run-flag
-      (play (let [main-grammar (generate-grammar 3)]
-              main-grammar)
-             ; (struct grammar
-              ;        [1 1 2 1]
-               ;       [1]
-                ;      ["A1"]
-                 ;     [1]
-                  ;    false
-                   ;   [main-grammar]))
-            tempo
+      (play (first (generate-pipe 1 (generate-piano)))
+	    tempo
             progress
             run-flag))
     (reset! progress 0)))

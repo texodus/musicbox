@@ -16,7 +16,6 @@
   [note octave]
   (let [note-str (note :pitch)]
     (str note-str
-        ; (if (!= note-str "R") (+ octave 2))
          (apply str (take (note :duration)
                           (repeat "q")))
          "a"
@@ -35,7 +34,7 @@
                      \ (voice-string (first label-voice) (second label-voice))
                      \ "Rww"))))
  
-(defn- build-midi
+(defn build-midi
   [string]
   (let [pattern (Pattern. string)
         parser (MusicStringParser.)
@@ -46,7 +45,7 @@
       (. parser (parse pattern))
       (. renderer getSequence))))
  
-(defn- play-midi
+(defn play-midi
   [midi tempo-atom progress-atom run-flag-atom]
   (with-open [synth (doto (. MidiSystem getSynthesizer) (.open))
               seqr (doto (. MidiSystem (getSequencer false)) (.open))]
@@ -68,3 +67,4 @@
       build-midi
       (play-midi tempo-atom progress-atom run-flag-atom)))
  
+

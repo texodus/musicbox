@@ -16,7 +16,7 @@
 
 (def bass-instrument-table ["Rock_Organ" "Tubular_Bells"
                             "Electric_Bass_Pick" "Synth_Voice"
-                            "Piano" "Woodblock"])
+                            "Piano"])
 
 (def lead-instrument-table ["Violin" "Piano" 
                             "Alto_Sax" "Synthbrass_1"
@@ -90,6 +90,15 @@
                :notes (apply into (map :notes x)))) 
           meters))
 
+(defn- harmonize
+  [pitch offset]
+  (if (or (= offset "R") (= pitch "R"))
+    "R"
+    (nth pitch-table 
+	 (+ (rem (pitch-map pitch) 12)
+	    (pitch-map offset)))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Composition
@@ -103,11 +112,7 @@
   (reduce (fn [harmony1 harmony2]
             (let [offset (nth (cycle harmony1) current-key)]
              (for [pitch harmony2]
-               (if (or (= offset "R") (= pitch "R"))
-                 "R"
-                 (nth pitch-table 
-                      (+ (rem (pitch-map pitch) 12)
-                         (pitch-map offset)))))))
+	       (harmonize pitch offset))))
           harmonies))
              
 (defn- synch-rhythm-down
@@ -117,13 +122,16 @@
 	  (drop current-key 
 		(cycle x)))))
 
+(defn- synch-key-seq-down
+  [current-key x1 x2]
+  (map #(rem (+ (nth (cycle x1) current-key) %) 12) x2))
+
 (defn- synch-velocity-down
   [current-key & xs]
   (let [x (apply concat xs)]
     (take (count x)
 	  (drop current-key 
 		(cycle x)))))
-
 
 (defn- synch-up 
   "Synchronize a sequence of voices (they must be the same length)"
@@ -141,8 +149,9 @@
   (splice (for [current-key key-seq] 
             (synch-up (conj (apply concat
                                    (for [child children]
-                                     (compose (assoc child 
-                                                :harmony (synch-harmony-down current-key harmony (:harmony child))
+                                     (compose (assoc child
+						:key-seq (synch-key-seq-down current-key key-seq (:key-seq child))
+		                                :harmony (synch-harmony-down current-key harmony (:harmony child))
                                                 :rhyme (synch-rhythm-down current-key rhyme (:rhyme child))
                                                 :velocity (synch-velocity-down current-key velocity (:velocity child))))))
                             (if instrument 
@@ -156,37 +165,57 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Composer Tools
-		 
-(defn generate-grammar
-  "Build a semi-random grammar"
-  [depth]
+	 
+(defn random-seq 
+  [length-pool element-pool]
   (let [random (Random.)
-        rnd (fn [range offset] (+ offset (. random (nextInt range))))]
-    {:key-seq (take (rnd 5 2) 
-                    (iterate (fn [_] (rnd 4 1)) 
-                             (rnd 4 1)))
-     :rhyme (if (< depth 2)
-              (take (rnd 3 1)
-                    (iterate (fn [_] (rnd 2 1))
-                             (rnd 2 1)))
-              (take (rnd 3 2)
-                    (iterate (fn [_] (rnd 4 1))
-                             (rnd 4 1))))
-     :harmony (take (rnd 4 2)
-                    (iterate (fn [_] (if (> (rnd 30 0) 1) 
-                                       (nth pitch-table (rnd 12 36))
-                                       "R"))
-                             (nth pitch-table (rnd 12 24))))
-     :velocity (take (rnd 3 2)
-                     (iterate (fn [_] (rnd 3 4))
-                              (rnd 3 4)))
-     :instrument (if (< depth 2)
-                   (if (< depth 1)
-                     (lead-instrument-table (rnd (count lead-instrument-table) 0))
-                     (bass-instrument-table (rnd (count bass-instrument-table) 0)))
-                   false)
-     :children (if (> depth 0)
-                 (vector (generate-grammar (dec depth)))
-                 (vector))}))
-			   
+	rnd (fn [coll] (nth coll (. random (nextInt (count coll)))))]
+    (take (rnd length-pool) (iterate (fn [_] (rnd element-pool)) (rnd element-pool)))))
 
+(defn generate-pipe
+  "Build a semi-random grammar"
+  [depth children]
+  (vector {:key-seq (random-seq [2 3 4 5] [1 2 3 4])
+	   :rhyme  (random-seq [2 3 4] [1 2 3 4])
+	   :harmony (random-seq [2 3 4 5] (take 24 (drop 36 pitch-table))) 
+	   :velocity (random-seq [2 3 4] [4 5 6])
+	   :instrument false
+	   :children (if (> depth 0)
+		       (generate-pipe (dec depth) children)
+		       children)}))
+
+(defn generate-rest-mask
+  [density children]
+  (vector {:key-seq (random-seq [1] [1 2 3 4])
+	   :rhyme []
+	   :harmony (random-seq [2 3 4] (cons "R" (take density (repeat "A3"))))
+	   :velocity []
+	   :instrument false
+	   :children children}))
+
+(defn generate-voice
+  [instrument octave children]
+  (vector {:key-seq (random-seq [2 3 4 5] [1 2 3 4])
+	   :rhyme (random-seq [2 3 4] [1 2 3])
+	   :harmony (random-seq [2 3 4] (take 12 (drop (* octave 12) pitch-table)))
+	   :velocity (random-seq [2 3 4] [4 5])
+	   :instrument instrument
+	   :children children}))
+
+(defn generate-piano
+  []
+  (generate-voice "Piano" 2 (concat (generate-rest-mask 2 (generate-voice "Piano" 3 []))
+                                    (generate-rest-mask 2 (generate-rest-mask 2 (generate-voice "Piano" 3 []))))))
+
+(defn generate-song
+  []
+  (let [common-voice (first (generate-voice "Piano" 3 []))]
+    (generate-pipe 1 (concat (generate-rest-mask 3 (vector (assoc common-voice
+                                                     :children (concat (generate-rest-mask 2 (generate-voice "Piano" 3 []))
+                                                                       (generate-rest-mask 2 (generate-rest-mask 2 (generate-voice "Piano" 3 []))))
+                                                     :instrument "Piano")))
+                             (generate-rest-mask 4 (vector (assoc common-voice
+                                                     :children (generate-voice "Piano" 4 [])
+                                                     :instrument false)))))))
+
+    
