@@ -26,7 +26,13 @@
   (do
     (reset! run-flag true)
     (while @run-flag
-      (play (first (generate-pipe 1 (generate-piano)))
+      (play (first (generate-pipe 0 (vector (struct grammar
+                    (random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
+                    []
+                    (random-seq [4] ["A0" "C0" "E0"])
+                    []
+                    false
+                    (generate-piano)))))
 	    tempo
             progress
             run-flag))

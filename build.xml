@@ -59,6 +59,7 @@
       <arg value="org.musicbox.composer"/>
       <arg value="org.musicbox.midi"/>
       <arg value="org.musicbox.controller"/>
+      <arg value="org.musicbox.djtools" />
     </java>
   </target>
 

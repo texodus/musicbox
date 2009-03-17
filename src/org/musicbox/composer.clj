@@ -24,7 +24,7 @@
                             "Orchestral_Strings"])
 
 (defstruct note :duration :pitch :velocity)
-(defstruct grammar :key-seq :rhyme :harmony :velocity :instrument :children)
+(defstruct grammar :indices :rhyme :harmony :velocity :instrument :children)
 (defstruct voice :instrument :notes)
 
 ;;;; Utility
@@ -50,14 +50,14 @@
 
 ;;;; These are utility functions for mising voices
 
-(defn- voice-length 
+(defn voice-length 
   "Determine the total duration of a vector of notes"
   [voice]
   (if voice
     (reduce + (map :duration (voice :notes)))
     0))
 
-(defn- resize-voice 
+(defn resize-voice 
   "Modulate a list of notes to be a specific (longer) total duration"
   [voice length] 
   (assoc voice 
@@ -70,7 +70,7 @@
                (cons head (:notes (resize-voice (assoc voice :notes tail) 
                                                 (- length (head :duration)))))))))
 
-(defn- longest
+(defn longest
   "Determines the voice with the longest total duration"
   ([voices] 
      (longest nil voices))
@@ -110,8 +110,8 @@
 (defn- synch-harmony-down
   [current-key & harmonies] 
   (reduce (fn [harmony1 harmony2]
-            (let [offset (nth (cycle harmony1) current-key)]
-             (for [pitch harmony2]
+            (let [offset (nth (cycle harmony2) current-key)]
+             (for [pitch harmony1]
 	       (harmonize pitch offset))))
           harmonies))
              
@@ -122,7 +122,7 @@
 	  (drop current-key 
 		(cycle x)))))
 
-(defn- synch-key-seq-down
+(defn- synch-indices-down
   [current-key x1 x2]
   (map #(rem (+ (nth (cycle x1) current-key) %) 12) x2))
 
@@ -145,12 +145,12 @@
 
 (defn compose
   "Does the actual work of composing a grammar tree into a vector of voices"
-  [{:keys [key-seq children rhyme harmony velocity instrument]}]
-  (splice (for [current-key key-seq] 
+  [{:keys [indices children rhyme harmony velocity instrument]}]
+  (splice (for [current-key indices] 
             (synch-up (conj (apply concat
                                    (for [child children]
                                      (compose (assoc child
-						:key-seq (synch-key-seq-down current-key key-seq (:key-seq child))
+						:indices (synch-indices-down current-key indices (:indices child))
 		                                :harmony (synch-harmony-down current-key harmony (:harmony child))
                                                 :rhyme (synch-rhythm-down current-key rhyme (:rhyme child))
                                                 :velocity (synch-velocity-down current-key velocity (:velocity child))))))
@@ -168,16 +168,15 @@
 	 
 (defn random-seq 
   [length-pool element-pool]
-  (let [random (Random.)
-	rnd (fn [coll] (nth coll (. random (nextInt (count coll)))))]
+  (let [rnd (fn [coll] (nth coll (rand-int (count coll))))]
     (take (rnd length-pool) (iterate (fn [_] (rnd element-pool)) (rnd element-pool)))))
 
 (defn generate-pipe
   "Build a semi-random grammar"
   [depth children]
-  (vector {:key-seq (random-seq [2 3 4 5] [1 2 3 4])
+  (vector {:indices (random-seq [2 3 4 5] [1 2 3 4])
 	   :rhyme  (random-seq [2 3 4] [1 2 3 4])
-	   :harmony (random-seq [2 3 4 5] (take 24 (drop 36 pitch-table))) 
+	   :harmony (random-seq [2 3 4 5] (take 12 pitch-table))
 	   :velocity (random-seq [2 3 4] [4 5 6])
 	   :instrument false
 	   :children (if (> depth 0)
@@ -186,36 +185,47 @@
 
 (defn generate-rest-mask
   [density children]
-  (vector {:key-seq (random-seq [1] [1 2 3 4])
+  (vector {:indices (random-seq [1] [1 2 3 4])
 	   :rhyme []
-	   :harmony (random-seq [2 3 4] (cons "R" (take density (repeat "A3"))))
+	   :harmony (random-seq [2 3 4] (cons "R" (take density (repeat "A0"))))
 	   :velocity []
 	   :instrument false
 	   :children children}))
 
 (defn generate-voice
   [instrument octave children]
-  (vector {:key-seq (random-seq [2 3 4 5] [1 2 3 4])
+  (vector {:indices (random-seq [2 3 4] [1 2 3 4])
 	   :rhyme (random-seq [2 3 4] [1 2 3])
-	   :harmony (random-seq [2 3 4] (take 12 (drop (* octave 12) pitch-table)))
+	   :harmony (random-seq [2 3 4] (concat (take 12 (drop (* octave 12) pitch-table)) ["R" "R"]))
 	   :velocity (random-seq [2 3 4] [4 5])
 	   :instrument instrument
 	   :children children}))
 
+(defn generate-bridge
+  [children]
+  (vector {:indices (random-seq [1] [1 2 3 4 5])
+	   :rhyme []
+	   :harmony ["A0"]
+	   :velocity []
+	   :instrument false
+	   :children children}))
+
 (defn generate-piano
   []
-  (generate-voice "Piano" 2 (concat (generate-rest-mask 2 (generate-voice "Piano" 3 []))
-                                    (generate-rest-mask 2 (generate-rest-mask 2 (generate-voice "Piano" 3 []))))))
+  (generate-bridge (concat (generate-rest-mask 2 (generate-voice "Piano" 4 (concat (generate-rest-mask 3 (generate-voice "Piano" 5 []))
+                                                                                   (generate-rest-mask 3 (generate-rest-mask 2 (generate-voice "Piano" 5 []))))))
+                           (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 3 []))))
+                           (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 5 [])))))))
 
 (defn generate-song
   []
-  (let [common-voice (first (generate-voice "Piano" 3 []))]
-    (generate-pipe 1 (concat (generate-rest-mask 3 (vector (assoc common-voice
-                                                     :children (concat (generate-rest-mask 2 (generate-voice "Piano" 3 []))
-                                                                       (generate-rest-mask 2 (generate-rest-mask 2 (generate-voice "Piano" 3 []))))
-                                                     :instrument "Piano")))
-                             (generate-rest-mask 4 (vector (assoc common-voice
-                                                     :children (generate-voice "Piano" 4 [])
-                                                     :instrument false)))))))
+  (let [common-voice (first (generate-voice "Piano" 4 []))]
+    (concat (generate-rest-mask 3 (vector (assoc common-voice
+                                            :children (concat (generate-rest-mask 2 (generate-voice "Piano" 5 []))
+                                                              (generate-rest-mask 2 (generate-rest-mask 2 (generate-voice "Piano" 3 []))))
+                                            :instrument "Piano")))
+            (generate-rest-mask 4 (vector (assoc common-voice
+                                            :children (generate-voice "Piano" 4 [])
+                                            :instrument false))))))
 
     

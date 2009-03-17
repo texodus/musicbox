@@ -12,7 +12,7 @@
   (:use [org.musicbox.composer]
         [clojure.contrib.str-utils :only (str-join)]))
 
-(defn- note-string
+(defn note-string
   [note octave]
   (let [note-str (note :pitch)]
     (str note-str
@@ -21,26 +21,31 @@
          "a"
          (* (note :velocity) 20))))
  
-(defn- voice-string
+(defn voice-string
   [voice octave]
   (str "I[" (voice :instrument) "] "
        (str-join \ (map #(note-string % octave) (voice :notes)))))
  
-(defn- build-string
+(defn build-string
   [voices]
-  (str-join \ (for [label-voice (pair-off voices (iterate inc 1))]
+  (str-join \ (for [label-voice (partition 2 (interleave voices (iterate inc 1)))]
                 (str \v (second label-voice)
                      \ "Rww"
                      \ (voice-string (first label-voice) (second label-voice))
                      \ "Rww"))))
- 
+
 (defn build-midi
   [string]
   (let [pattern (Pattern. string)
         parser (MusicStringParser.)
         renderer (MidiRenderer. 0 200)]
     (do
-      (. System/out println string)
+      (dorun (for [token (. string split " ")]
+               (if (. token startsWith "I")
+                 (. System/out print (str "\033[31m " token \ ))
+                 (if (. token startsWith "R")
+                   (. System/out print (str "\033[32m " token \ ))
+                   (. System/out print (str "\033[33m " token \ ))))))
       (. parser (addParserListener renderer))
       (. parser (parse pattern))
       (. renderer getSequence))))
