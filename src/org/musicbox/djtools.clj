@@ -1,6 +1,7 @@
 
 (ns org.musicbox.djtools
-  (:gen-class)
+  (:gen-class
+   :init init)
   (:import [javax.sound.midi MidiSystem Sequencer Sequence Synthesizer]
            [java.io File BufferedReader InputStreamReader]
            [java.awt.event ActionListener]
@@ -46,29 +47,38 @@
 (defn resize-voices [voices]
   (for [voice voices] (resize-voice voice 32)))
 
-(def master-sequencer-run-flag (atom true))
+(def master-sequencer-run-flag (ref true))
 
 (def master-sequencer-tempo-atom (atom 2))
 (def current-track-progress-atom (atom 0))
 (def master-sequencer-agent (agent nil))
 
 (defn new-phrase [] (-> (first (generate-pipe 0 (vector (struct grammar
-                                                                       (random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
-                                                                       []
-                                                                       (random-seq [4] ["A0" "C0" "E0"])
-                                                                       []
-                                                                       false
-                                                                       (generate-piano)))))
-                               compose
-                               resize-voices 
-                               bassline-string
-                               build-midi))
+                                                                (random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
+                                                                []
+                                                                (random-seq [4] ["A0" "C0" "E0"])
+                                                                []
+                                                                false
+                                                                (generate-piano)))))
+                        compose
+                        resize-voices 
+                        bassline-string
+                        build-midi))
 
-(def deck-queue-atom (atom (new-phrase)))
+(def deck-queue-ref (ref nil))
 
-(defn switch [] (do
-                  (reset! deck-queue-atom (new-phrase))
-                  (reset! master-sequencer-run-flag false)))
+(defn switch 
+  ([] 
+     (dosync
+       (ref-set deck-queue-ref (new-phrase))
+       (ref-set master-sequencer-run-flag false)))
+  ([& voices]
+     (dosync
+      (ref-set deck-queue-ref (-> voices
+                              build-string
+                              build-midi))
+      (ref-set master-sequencer-run-flag false))))
+     
 
 (defn master-sequencer-start 
   []
@@ -76,13 +86,15 @@
             (fn [_]
               (do (.setReceiver (.getTransmitter seqr) (.getReceiver synth))
                   (while true
-                    (do (play-loop  @deck-queue-atom
-                                    master-sequencer-tempo-atom 
-                                    current-track-progress-atom 
-                                    master-sequencer-run-flag)
-                        (reset! master-sequencer-run-flag true)))))))
+                    (play-loop  @deck-queue-ref
+                                master-sequencer-tempo-atom 
+                                current-track-progress-atom 
+                                master-sequencer-run-flag)
+                    (dosync (ref-set master-sequencer-run-flag true)))))))
   
-
-
+(defn init 
+  []
+  (do (dosync (ref-set deck-queue-ref (new-phrase)))
+      (vector)))
 
 

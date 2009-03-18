@@ -196,7 +196,7 @@
   [instrument octave children]
   (vector {:indices (random-seq [2 3 4] [1 2 3 4])
 	   :rhyme (random-seq [2 3 4] [1 2 3])
-	   :harmony (random-seq [2 3 4] (concat (take 12 (drop (* octave 12) pitch-table)) ["R" "R"]))
+	   :harmony (random-seq [4 5] (concat (take 12 (drop (* octave 12) pitch-table)) ["R" "R"]))
 	   :velocity (random-seq [2 3 4] [4 5])
 	   :instrument instrument
 	   :children children}))
@@ -214,8 +214,8 @@
   []
   (generate-bridge (concat (generate-rest-mask 2 (generate-voice "Piano" 4 (concat (generate-rest-mask 3 (generate-voice "Piano" 5 []))
                                                                                    (generate-rest-mask 3 (generate-rest-mask 2 (generate-voice "Piano" 5 []))))))
-                           (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 3 []))))
-                           (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 5 [])))))))
+                           (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 3 [])))))))
+                          ; (generate-rest-mask 1 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 5 [])))))))
 
 (defn generate-song
   []

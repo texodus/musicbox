@@ -51,13 +51,13 @@
       (. renderer getSequence))))
  
 (defn play-midi
-  [midi tempo-atom progress-atom run-flag-atom]
+  [midi tempo-atom progress-atom run-flag]
   (with-open [synth (doto (. MidiSystem getSynthesizer) (.open))
               seqr (doto (. MidiSystem (getSequencer false)) (.open))]
       (do (.setReceiver (.getTransmitter seqr) (.getReceiver synth))
           (.setSequence seqr midi)
           (.start seqr)
-          (while (and @run-flag-atom (.isRunning seqr))
+          (while (and @run-flag (.isRunning seqr))
             (. Thread (sleep 0))
             (reset! progress-atom (quot (* 100 (. seqr getTickPosition))
                                    (. seqr getTickLength)))
@@ -65,11 +65,11 @@
           (.println System/out "Finished"))))
  
 (defn play
-  [grammar tempo-atom progress-atom run-flag-atom]
+  [grammar tempo-atom progress-atom run-flag]
   (-> grammar
       compose
       build-string
       build-midi
-      (play-midi tempo-atom progress-atom run-flag-atom)))
+      (play-midi tempo-atom progress-atom run-flag)))
  
 
