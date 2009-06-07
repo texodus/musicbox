@@ -1,7 +1,7 @@
 
 (ns org.musicbox.midi
   (:gen-class)
-  (:import [javax.sound.midi MidiSystem Sequencer Sequence Synthesizer]
+  (:import [javax.sound.midi Sequencer Sequence Synthesizer]
            [java.io File BufferedReader InputStreamReader]
            [java.awt.event ActionListener]
            [javax.swing.event ChangeListener]
@@ -10,6 +10,7 @@
            [org.musicbox GUI]
            [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm])
   (:use [org.musicbox.composer]
+        [clojure.contrib.duck-streams]
         [clojure.contrib.str-utils :only (str-join)]))
 
 (defn note-string
@@ -23,7 +24,7 @@
  
 (defn voice-string
   [voice octave]
-  (str "I[" (voice :instrument) "] "
+  (str ;"I[" (voice :instrument) "] "
        (str-join \ (map #(note-string % octave) (voice :notes)))))
  
 (defn build-string
@@ -52,8 +53,10 @@
  
 (defn play-midi
   [midi tempo-atom progress-atom run-flag]
-  (with-open [synth (doto (. MidiSystem getSynthesizer) (.open))
-              seqr (doto (. MidiSystem (getSequencer false)) (.open))]
+  (with-open [synth (doto (. javax.sound.midi.MidiSystem getSynthesizer)
+                      (.open))
+;                      (.openPort 14 0))
+              seqr (doto (. javax.sound.midi.MidiSystem (getSequencer false)) (.open))]
       (do (.setReceiver (.getTransmitter seqr) (.getReceiver synth))
           (.setSequence seqr midi)
           (.start seqr)
@@ -71,5 +74,15 @@
       build-string
       build-midi
       (play-midi tempo-atom progress-atom run-flag)))
- 
+
+(defn greatest-hits
+  []
+  (loop [lines (read-lines "/home/slink/Documents/greatest-hits.txt")
+         name 0]
+    (do (if (not (empty? (first lines)))
+          (. javax.sound.midi.MidiSystem 
+             (write (build-midi (first lines)) 
+                    1 
+                    (java.io.File. (str "/home/slink/Desktop/" name ".mid")))))
+        (if (< 1 (count lines)) (recur (rest lines) (+ name 1))))))
 

@@ -1,33 +1,20 @@
-
 (ns org.musicbox.composer
-  (:gen-class
-   :init init)
-  (:import [java.util Random]))
+  (:gen-class)
+  (:import [java.util Random])
+  (:use [clojure.contrib.test-is]
+	[clojure.contrib.str-utils :only (str-join)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;
 ;;;; Common
 
-;;;; Constants 
-
 (def note-table ["A" "A#" "B" "C"
                  "C#" "D" "D#" "E"
                  "F" "F#" "G" "G#"])
 
-(def bass-instrument-table ["Rock_Organ" "Tubular_Bells"
-                            "Electric_Bass_Pick" "Synth_Voice"
-                            "Piano"])
-
-(def lead-instrument-table ["Violin" "Piano" 
-                            "Alto_Sax" "Synthbrass_1"
-                            "Flute" "Sawtooth"
-                            "Orchestral_Strings"])
-
 (defstruct note :duration :pitch :velocity)
 (defstruct grammar :indices :rhyme :harmony :velocity :instrument :children)
 (defstruct voice :instrument :notes)
-
-;;;; Utility
 
 (defn != 
   [a b] 
@@ -48,7 +35,7 @@
             (take 120 (pair-off (iterate inc 0)
                                 pitch-table))))
 
-;;;; These are utility functions for mising voices
+;;;; These are utility functions for mixing voices
 
 (defn voice-length 
   "Determine the total duration of a vector of notes"
@@ -103,35 +90,45 @@
 ;;;;
 ;;;; Composition
 
-; These Functions determine the characteristics of the composition by defining
-; how nodes affect the harmony and rhythm of their children.  Change them for
-; fun & profit!
+(defmulti synch-down 
+  "Manipulate a grammar node on teh way down"
+  (fn [& x] (identity (first x))))
 
-(defn- synch-harmony-down
-  [current-key & harmonies] 
+(defmethod synch-down :harmony
+  [_ current-key & harmonies] 
   (reduce (fn [harmony1 harmony2]
             (let [offset (nth (cycle harmony2) current-key)]
              (for [pitch harmony1]
 	       (harmonize pitch offset))))
           harmonies))
              
-(defn- synch-rhythm-down
-  [current-key & xs]
+(defmethod synch-down :rhyme
+  [_ current-key & xs]
   (let [x (apply concat xs)]
     (take (count x)
 	  (drop current-key 
 		(cycle x)))))
 
-(defn- synch-indices-down
-  [current-key x1 x2]
-  (map #(rem (+ (nth (cycle x1) current-key) %) 12) x2))
+(defmethod synch-down :indices
+  [_ current-key rhyme1 rhyme2]
+  (map #(rem (+ (nth (cycle rhyme1) current-key) %) 12) rhyme2))
 
-(defn- synch-velocity-down
-  [current-key & xs]
-  (let [x (apply concat xs)]
+(defmethod synch-down :velocity
+  [_ current-key & velocities]
+  (let [x (apply concat velocities)]
     (take (count x)
 	  (drop current-key 
 		(cycle x)))))
+
+(defmethod synch-down :instrument [_ _ _ x] x)
+
+(defmethod synch-down :children [_ _ _ x] x)
+
+(defmethod synch-down :default 
+  [current-key grammar child] 
+  (into {} (for [pair child]
+             (vector (first pair) 
+                     (apply #(synch-down %1 current-key (grammar %1) %2) pair)))))
 
 (defn- synch-up 
   "Synchronize a sequence of voices (they must be the same length)"
@@ -145,15 +142,11 @@
 
 (defn compose
   "Does the actual work of composing a grammar tree into a vector of voices"
-  [{:keys [indices children rhyme harmony velocity instrument]}]
+  [{:keys [indices children rhyme harmony velocity instrument] :as grammar}]
   (splice (for [current-key indices] 
             (synch-up (conj (apply concat
                                    (for [child children]
-                                     (compose (assoc child
-						:indices (synch-indices-down current-key indices (:indices child))
-		                                :harmony (synch-harmony-down current-key harmony (:harmony child))
-                                                :rhyme (synch-rhythm-down current-key rhyme (:rhyme child))
-                                                :velocity (synch-velocity-down current-key velocity (:velocity child))))))
+                                     (compose (synch-down current-key grammar child))))
                             (if instrument 
                               (struct voice 
                                       instrument
@@ -174,10 +167,10 @@
 (defn generate-pipe
   "Build a semi-random grammar"
   [depth children]
-  (vector {:indices (random-seq [2 3 4 5] [1 2 3 4])
-	   :rhyme  (random-seq [2 3 4] [1 2 3 4])
-	   :harmony (random-seq [2 3 4 5] (take 12 pitch-table))
-	   :velocity (random-seq [2 3 4] [4 5 6])
+  (vector {:indices (random-seq (range 2 5) (range 1 4))
+	   :rhyme  (random-seq (range 2 4) (range 1 4))
+	   :harmony (random-seq (range 2 5) (take 12 pitch-table))
+	   :velocity (random-seq (range 2 4) (range 4 6))
 	   :instrument false
 	   :children (if (> depth 0)
 		       (generate-pipe (dec depth) children)
@@ -185,36 +178,52 @@
 
 (defn generate-rest-mask
   [density children]
-  (vector {:indices (random-seq [1] [1 2 3 4])
+  (vector {:indices (random-seq [1] (range 1 4))
 	   :rhyme []
-	   :harmony (random-seq [2 3 4] (cons "R" (take density (repeat "A0"))))
+	   :harmony (random-seq (range 2 4) (cons "R" (take density (repeat "A0"))))
 	   :velocity []
 	   :instrument false
 	   :children children}))
 
 (defn generate-voice
   [instrument octave children]
-  (vector {:indices (random-seq [2 3 4] [1 2 3 4])
-	   :rhyme (random-seq [2 3 4] [1 2 3])
-	   :harmony (random-seq [4 5] (concat (take 12 (drop (* octave 12) pitch-table)) ["R" "R"]))
-	   :velocity (random-seq [2 3 4] [4 5])
+  (vector {:indices (random-seq (range 2 4) (range 1 4))
+	   :rhyme (random-seq (range 2 4) (range 1 3))
+	   :harmony (random-seq (range 4 5)  
+                                (concat (take 12 (drop (* octave 7) 
+                                                       pitch-table)) 
+                                        ["R" "R"]))
+	   :velocity (random-seq (range 2 4) (range 2 4))
 	   :instrument instrument
 	   :children children}))
 
 (defn generate-bridge
   [children]
-  (vector {:indices (random-seq [1] [1 2 3 4 5])
+  (vector {:indices (random-seq [1] (range 1 5))
 	   :rhyme []
 	   :harmony ["A0"]
 	   :velocity []
 	   :instrument false
 	   :children children}))
 
+(defn generate-drumline
+  [children]
+  (vector {:indices (random-seq (range 2 4) (range 1 4))
+           :rhyme (random-seq (range 2 4) (range 1 4))
+           :harmony (random-seq (range 2 4) ["[Snare]"])
+           :velocity (random-seq (range 2 4) (range 5 6))
+           :instrument true
+           :children children}))
+
+(defn generate-drums
+  []
+  (generate-bridge (generate-rest-mask 2 (generate-drumline []))))
+
 (defn generate-piano
   []
-  (generate-bridge (concat (generate-rest-mask 2 (generate-voice "Piano" 4 (concat (generate-rest-mask 3 (generate-voice "Piano" 5 []))
-                                                                                   (generate-rest-mask 3 (generate-rest-mask 2 (generate-voice "Piano" 5 []))))))
-                           (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 3 [])))))))
+  (generate-bridge (concat (generate-rest-mask 2 (generate-voice "Piano" 6 (concat (generate-rest-mask 3 (generate-voice "Piano" 7 []))
+                                                                                   (generate-rest-mask 3 (generate-rest-mask 2 (generate-voice "Piano" 7 []))))))
+                           (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 5 [])))))))
                           ; (generate-rest-mask 1 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 5 [])))))))
 
 (defn generate-song
