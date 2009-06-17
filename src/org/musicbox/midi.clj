@@ -3,11 +3,7 @@
   (:gen-class)
   (:import [javax.sound.midi Sequencer Sequence Synthesizer]
            [java.io File BufferedReader InputStreamReader]
-           [java.awt.event ActionListener]
-           [javax.swing.event ChangeListener]
            [java.util Random]
-           [javax.swing JPanel JFrame JLabel JButton JSlider JProgressBar UIManager JRootPane]
-           [org.musicbox GUI]
            [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm])
   (:use [org.musicbox.composer]
         [clojure.contrib.duck-streams]
@@ -85,4 +81,8 @@
                     1 
                     (java.io.File. (str "/home/slink/Desktop/" name ".mid")))))
         (if (< 1 (count lines)) (recur (rest lines) (+ name 1))))))
+
+(defn set-soundbank
+  [soundbank]
+  (do (. javax.sound.midi.MidiSystem (getSoundbank (java.io.File. soundbank)))))
 

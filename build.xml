@@ -33,7 +33,6 @@
   </manifest>
   </target>
 
-
   <target name="compile_java" depends="init" description="compile the source ">
     <javac srcdir="${src}" destdir="${build}">
       <classpath refid="Musicbox.classpath"/>
@@ -62,6 +61,7 @@
       <arg value="org.musicbox.midi"/>
       <arg value="org.musicbox.controller"/>
       <arg value="org.musicbox.djtools" />
+      <arg value="org.musicbox.genetic" />
     </java>
   </target>
 
