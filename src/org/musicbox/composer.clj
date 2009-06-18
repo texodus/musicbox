@@ -12,8 +12,10 @@
                  "C#" "D" "D#" "E"
                  "F" "F#" "G" "G#"])
 
+(def note-harmonic-table ["A" "B" "C" "D" "E" "F" "G"])
+
 (defstruct note :duration :pitch :velocity)
-(defstruct grammar :themes :rhyme :harmony :velocity :instrument :children)
+(defstruct grammar :theme :rhyme :harmony :velocity :instrument :children)
 (defstruct voice :instrument :notes)
 
 (defn pair-off
@@ -24,6 +26,11 @@
 (def pitch-table
      (map #(apply str %) 
           (take 120 (pair-off (cycle note-table)
+                              (map #(quot % 12) (iterate inc 0))))))
+
+(def harmonic-table
+     (map #(apply str %) 
+          (take 70 (pair-off (cycle note-harmonic-table)
                               (map #(quot % 12) (iterate inc 0))))))
 
 (def pitch-map 
@@ -93,35 +100,35 @@
 
 ; synch-down manipulates data of child nodes based on the parent node
 
-(defmulti #^{:private true} vary 
+(defmulti vary 
   "Manipulate a grammar node on the way down, dispatching on key from the grammar struct"
-  (fn [_ _ [k _]] (identity k)))
+  (fn [_ _ [k _]] k))
 
 (defmethod vary :harmony
-  [modulus harmony2 [_ harmony1]] 
-  (reduce (fn [harmony1 harmony2]
-            (let [offset (nth (cycle harmony2) modulus)]
-             (for [pitch harmony1]
-	       (harmonize pitch offset))))
-          [harmony1 harmony2]))
+  [modulus {harmony1 :harmony} [_ harmony2]] 
+  [:harmony (reduce (fn [harmony1 harmony2]
+                      (let [offset (nth (cycle harmony2) modulus)]
+                        (for [pitch harmony1]
+                          (harmonize pitch offset))))
+                    [harmony1 harmony2])])
              
 (defmethod vary :rhyme
-  [modulus rhyme2 [_ rhyme1]]
-  (let [x (concat rhyme2 rhyme1)]
-    (take (count x)
-	  (drop modulus (cycle x)))))
+  [modulus {rhyme1 :rhyme} [_ rhyme2]]
+  [:rhyme (let [x (concat rhyme2 rhyme1)]
+            (take (count x)
+                  (drop modulus (cycle x))))])
 
 (defmethod vary :theme
-  [modulus theme2 [_ theme1]]
-  (map #(rem (+ (nth (cycle theme1) modulus) %) 12) theme2))
+  [modulus {theme1 :theme} [_ theme2]]
+  [:theme (map #(rem (+ (nth (cycle theme1) modulus) %) 12) theme2)])
 
 (defmethod vary :emphasis
-  [modulus emphasis2 [_ emphasis1]]
-  (let [x (concat emphasis2 emphasis1)]
-    (take (count x)
-	  (drop modulus (cycle x)))))
+  [modulus {emphasis1 :emphasis} [_ emphasis2]]
+  [:emphasis (let [x (concat emphasis2 emphasis1)]
+               (take (count x)
+                     (drop modulus (cycle x))))])
 
-(defmethod vary :default [_ _ [_ x]] x)
+(defmethod vary :default [_ _ pair] pair)
 
 (defn- synchronize
   "Synchronize a sequence of voices (they must be the same length)"
@@ -181,13 +188,13 @@
 (defn generate-voice
   "Generate a random voice, or partially random"
   ([instrument octave children]
-     (vector {:theme (random-seq (range 2 4) (range 1 4))
+     (vector {:theme (random-seq (range 2 4) (range 1 6)) ; 6 -> 5
               :rhyme (random-seq (range 2 4) (range 1 3))
               :harmony (random-seq (range 4 5)  
                                    (concat (take 12 (drop (* octave 7) 
-                                                          pitch-table)) 
+                                                          harmonic-table)) 
                                            ["R" "R"]))
-              :emphasis (random-seq (range 2 4) (range 2 4))
+              :emphasis (random-seq (range 2 4) (range 3 5))
               :instrument instrument
               :children children}))
   ([instrument octave {harmony :harmony rhyme :rhyme} children]
@@ -222,9 +229,9 @@
 
 (defn generate-piano
   ([]
-     (generate-bridge (concat (generate-rest-mask 2 (generate-voice "Piano" 6 (concat (generate-rest-mask 3 (generate-voice "Piano" 7 []))
-                                                                                      (generate-rest-mask 3 (generate-rest-mask 2 (generate-voice "Piano" 7 []))))))
-                              (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Piano" 5 [])))))))
+     (generate-bridge (concat (generate-rest-mask 2 (generate-voice "Synth_Bass_2" 6 (concat (generate-rest-mask 3 (generate-voice "Synth_Bass_2" 7 [])))))
+                                                                                      (generate-rest-mask 3 (generate-rest-mask 2 (generate-voice "Synth_Bass_2" 7 []))))))
+                              (generate-rest-mask 2 (generate-pipe 0 (generate-rest-mask 2 (generate-voice "Synth_Bass_2" 5 [])))))))
   ([bass soprano tenor alto]
      (generate-bridge (concat (generate-rest-mask 2 (generate-voice "Piano" 6 bass (concat (generate-rest-mask 3 (generate-voice "Piano" 7 tenor []))
                                                                                       (generate-rest-mask 3 (generate-rest-mask 2 (generate-voice "Piano" 7 alto []))))))

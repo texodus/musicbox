@@ -32,7 +32,7 @@
            (vector (struct composer/grammar
                            (composer/random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
                            []
-                           (composer/random-seq [4] ["A0" "C0" "E0"])
+                           (composer/random-seq [4] ["A0" "D0" "E0"])
                            []
                            false
                            (composer/generate-piano))))
