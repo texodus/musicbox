@@ -52,16 +52,18 @@ public class GUI extends javax.swing.JPanel {
 
         jSlider1 = new javax.swing.JSlider();
         jProgressBar1 = new javax.swing.JProgressBar();
-        jButton1 = new javax.swing.JButton("", new javax.swing.ImageIcon(this.getClass().getResource("/toolbarButtonGraphics/media/Play16.gif")));
-        jButton2 = new javax.swing.JButton("", new javax.swing.ImageIcon(this.getClass().getResource("/toolbarButtonGraphics/media/Stop16.gif")));
-        jButton3 = new javax.swing.JButton("", new javax.swing.ImageIcon(this.getClass().getResource("/toolbarButtonGraphics/general/Refresh16.gif")));
+        jButton1 = new javax.swing.JButton("", new javax.swing.ImageIcon(this.getClass().getResource("/play16.gif"))); 
+        jButton2 = new javax.swing.JButton("", new javax.swing.ImageIcon(this.getClass().getResource("/stop16.gif"))); 
+        jButton3 = new javax.swing.JButton("", new javax.swing.ImageIcon(this.getClass().getResource("/refresh16.gif")));
         jSlider2 = new javax.swing.JSlider();
 
         jSlider2.setMajorTickSpacing(50);
         jSlider2.setMinorTickSpacing(25);
+        jSlider2.setName("Speed");
         jSlider1.setPaintLabels(false);
         //  jSlider2.setPaintTicks(true);
         jSlider1.setName("Volume"); // NOI18N
+        jSlider2.setFont(new java.awt.Font("Nice", 0, 1));
 
         //   jButton1.setIcon(new javax.swing.ImageIcon(this.getClass().getResource("/toolbarButtonGraphics/media/Play24.gif")));
         jButton1.setActionCommand("");
@@ -95,10 +97,10 @@ public class GUI extends javax.swing.JPanel {
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                        .addComponent(jSlider2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jButton2, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jButton1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(jButton3, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)))
+                        .addComponent(jSlider2, javax.swing.GroupLayout.PREFERRED_SIZE, 24, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(jButton2, javax.swing.GroupLayout.PREFERRED_SIZE, 24, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(jButton1, javax.swing.GroupLayout.PREFERRED_SIZE, 24, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(jButton3, javax.swing.GroupLayout.PREFERRED_SIZE, 24, javax.swing.GroupLayout.PREFERRED_SIZE)))
                 .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
     }// </editor-fold>

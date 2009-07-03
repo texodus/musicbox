@@ -49,14 +49,14 @@
 (def current-track-progress-atom (atom 0))
 (def master-sequencer-agent (agent nil))
 
-(defn new-phrase [] (-> ;(first (generate-drums))
-                     (first (generate-pipe 0 (vector (struct grammar
+(defn new-phrase [] (-> ;(first (gen-drums))
+                     (first (gen-pipe 0 (vector (struct grammar
                                                              (random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
                                                              []
                                                              (random-seq [4] ["A0" "C0" "E0"])
                                                              []
                                                              false
-                                                             (generate-piano)))))
+                                                             (gen-piano)))))
                         compose
                         resize-voices 
                         bassline-string

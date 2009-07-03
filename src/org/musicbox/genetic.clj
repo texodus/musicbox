@@ -43,64 +43,64 @@
                        (concat new-store
                                (take dropped (repeatedly random-rhyme))))))))
 
-(defn generate-pipe
+(defn gen-pipe
   "Build a semi-random grammar"
   [depth children]
   (vector {:indices (composer/random-seq (range 2 5) (range 1 4))
 	   :rhyme  (nth @rhyme-store (rand-int (count @rhyme-store)))
 	   :harmony (nth @harmony-store (rand-int (count @harmony-store)))
-	   :velocity (composer/random-seq (range 2 4) (range 4 6))
+	   :emphasis (composer/random-seq (range 2 4) (range 4 6))
 	   :instrument false
 	   :children (if (> depth 0)
-		       (generate-pipe (dec depth) children)
+		       (gen-pipe (dec depth) children)
 		       children)}))
 
-(defn generate-rest-mask
+(defn gen-mask
   [density children]
   (vector {:indices (composer/random-seq [1] (range 1 4))
 	   :rhyme []
 	   :harmony (composer/random-seq (range 2 4) (cons "R" (take density (repeat "A0"))))
-	   :velocity []
+	   :emphasis []
 	   :instrument false
 	   :children children}))
 
-(defn generate-voice
-  "Generate a random voice, or partially random"
+(defn gen-voice
+  "Gen a random voice, or partially random"
   [instrument octave children]
   (vector {:indices (composer/random-seq (range 2 4) (range 1 4))
            :rhyme (nth @rhyme-store (rand-int (count @rhyme-store)))
            :harmony (nth @harmony-store (rand-int (count @harmony-store)))
-           :velocity (composer/random-seq (range 2 4) (range 2 4))
+           :emphasis (composer/random-seq (range 2 4) (range 2 4))
            :instrument instrument
            :children children}))
 
-(defn generate-bridge
+(defn gen-bridge
   [children]
   (vector {:indices (composer/random-seq [1] (range 1 5))
 	   :rhyme []
 	   :harmony ["A0"]
-	   :velocity []
+	   :emphasis []
 	   :instrument false
 	   :children children}))
 
-(defn generate-song
+(defn gen-song
   []
-  (generate-pipe 0
+  (gen-pipe 0
    (vector (struct composer/grammar
                    (composer/random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
                    []
                    (composer/random-seq [4] ["A0" "C0" "E0"])
                    []
                    false
-                   (generate-bridge 
-                    (concat (generate-rest-mask 2 
-                             (generate-voice "Piano" 6 
-                              (concat (generate-rest-mask 3 
-                                       (generate-voice "Piano" 7 []))
-                                      (generate-rest-mask 3 
-                                       (generate-rest-mask 2 
-                                        (generate-voice "Piano" 7 []))))))
-                            (generate-rest-mask 2 
-                             (generate-pipe 0 
-                              (generate-rest-mask 2 
-                               (generate-voice "Piano" 5 []))))))))))
+                   (gen-bridge 
+                    (concat (gen-mask 2 
+                             (gen-voice "Piano" 6 
+                              (concat (gen-mask 3 
+                                       (gen-voice "Piano" 7 []))
+                                      (gen-mask 3 
+                                       (gen-mask 2 
+                                        (gen-voice "Piano" 7 []))))))
+                            (gen-mask 2 
+                             (gen-pipe 0 
+                              (gen-mask 2 
+                               (gen-voice "Piano" 5 []))))))))))

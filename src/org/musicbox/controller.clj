@@ -28,14 +28,14 @@
     (reset! run-flag true)
     (while @run-flag
       (-> 0
-          (composer/generate-pipe 
+          (composer/gen-pipe 
            (vector (struct composer/grammar
                            (composer/random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
                            []
                            (composer/random-seq [4] ["A0" "D0" "E0"])
                            []
                            false
-                           (composer/generate-piano))))
+                           (composer/gen-piano))))
           first
           (midi/play tempo progress run-flag)))
     (reset! progress 0)))
@@ -46,7 +46,7 @@
     ; Create the application frame & utils
     (let [panel (GUI.)
           frame (doto (JFrame.)
-                  (.setTitle "Clojure Music Box")
+                  (.setTitle "MusicBox")
                   (.setDefaultCloseOperation (. JFrame EXIT_ON_CLOSE))
                   (.add panel)
                   (.setResizable false)
@@ -56,8 +56,8 @@
                 (fn [_] (while true 
                           (do (.. panel getProgressBar (setValue @progress))
                               (. Thread (sleep 500))))))
-      (midi/set-soundbank "8RealGS20.SF2")
-                                        ; Add ActionListeners for the various controls
+    ;  (midi/set-soundbank "8RealGS20.SF2")
+      ; Add ActionListeners for the various controls
       (. (. panel getPlayButton) 
          (addActionListener (proxy [ActionListener] []
                               (actionPerformed [event]

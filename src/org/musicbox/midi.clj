@@ -16,7 +16,7 @@
          (apply str (take (note :duration)
                           (repeat "q")))
          "a"
-         (* (note :velocity) 20))))
+         (* (note :emphasis) 20))))
  
 (defn voice-string
   [voice octave]

@@ -39,18 +39,11 @@
     </javac>
   </target>
 
- <!-- <target name="test"
-	  description = "Run tests"
-	  if="hasclojure">
-    <java classname="clojure.main">
-      <classpath>
-        <path location="${build}"/>
-        <path location="${src}"/>
-        <path location="${clojure.jar}"/>
-      </classpath>
-      <arg value="src/org/musicbox/tests/test.clj"/>
+  <target name="test" description="Run tests">
+    <java classname="org.musicbox.test.composer_test">
+      <classpath refid="Musicbox.classpath"/>
     </java>
-  </target> -->
+  </target> 
 
   <target name="compile" depends="init, compile_java" description="Compile Clojure sources.">
     <java classname="clojure.lang.Compile" fork="true" failonerror="true">
@@ -62,10 +55,14 @@
       <arg value="org.musicbox.controller"/>
       <arg value="org.musicbox.djtools" />
       <arg value="org.musicbox.genetic" />
+      <arg value="org.musicbox.test.composer-test" />
     </java>
+    <copy todir="${build}">
+      <fileset dir="resources"/>
+    </copy>
   </target>
 
- <target name="dist" depends="compile, manifest" description="generate the distribution" >
+ <target name="dist" depends="compile, manifest, test" description="generate the distribution" >
     <mkdir dir="${dist}/lib"/>
     <jar manifest="${build}/MANIFEST.MF" jarfile="${dist}/lib/Musicbox-${DSTAMP}.jar" basedir="${build}"/>
     <copy includeemptydirs="false" todir="${dist}/lib">
