@@ -4,7 +4,8 @@
   (:import [javax.sound.midi Sequencer Sequence Synthesizer]
            [java.io File BufferedReader InputStreamReader]
            [java.util Random]
-           [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm])
+           [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm MidiParser]
+           [org.jfugue.extras GetPatternForVoiceTool])
   (:use [org.musicbox.composer]
         [clojure.contrib.duck-streams]
         [clojure.contrib.str-utils :only (str-join)]))
@@ -31,37 +32,54 @@
                      \ (voice-string (first label-voice) (second label-voice))
                      \ "Rww"))))
 
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;
+;;;; Midi
+
+(defn parse-midi
+  "Takes a file-name and returns a JFugue midi string"
+  [file-name]
+  (let [listener (GetPatternForVoiceTool. 0)]
+    (do (doto (MidiParser.)
+          (.addParserListener listener)
+          (.parse (javax.sound.midi.MidiSystem/getSequence (File. file-name)))) 
+        (.. listener getPattern getMusicString))))
+
 (defn build-midi
+  "Takes a JFugue midi string and returns a midi sequence"
   [string]
   (let [pattern (Pattern. string)
         parser (MusicStringParser.)
         renderer (MidiRenderer. 0 200)]
-    (do
-      (dorun (for [token (. string split " ")]
-               (if (. token startsWith "I")
-                 (. System/out print (str "\033[31m " token \ ))
-                 (if (. token startsWith "R")
-                   (. System/out print (str "\033[32m " token \ ))
-                   (. System/out print (str "\033[33m " token \ ))))))
-      (. parser (addParserListener renderer))
-      (. parser (parse pattern))
-      (. renderer getSequence))))
- 
+    (do (dorun (for [token (. string split " ")]
+                 (if (. token startsWith "I")
+                   (. System/out print (str "\033[31m " token \ ))
+                   (if (. token startsWith "R")
+                     (. System/out print (str "\033[32m " token \ ))
+                     (. System/out print (str "\033[33m " token \ ))))))
+        (. parser (addParserListener renderer))
+        (. parser (parse pattern))
+        (. renderer getSequence))))
+
 (defn play-midi
-  [midi tempo-atom progress-atom run-flag]
-  (with-open [synth (doto (. javax.sound.midi.MidiSystem getSynthesizer)
-                      (.open))
-;                      (.openPort 14 0))
-              seqr (doto (. javax.sound.midi.MidiSystem (getSequencer false)) (.open))]
-      (do (.setReceiver (.getTransmitter seqr) (.getReceiver synth))
-          (.setSequence seqr midi)
-          (.start seqr)
-          (while (and @run-flag (.isRunning seqr))
+  "Takes a midi sequence and a few user interface atoms and plays the midi"
+  ([midi] (play-midi (atom 1) (atom 0) (atom true)))
+  ([midi tempo-atom progress-atom run-flag]
+     (with-open [synth (doto (. javax.sound.midi.MidiSystem getSynthesizer)
+                         (.open))
+                        ;(.openPort 14 0))
+                 seqr (doto (. javax.sound.midi.MidiSystem (getSequencer false)) (.open))]
+       (do (.setReceiver (.getTransmitter seqr) (.getReceiver synth))
+           (.setSequence seqr midi)
+           (.start seqr)
+           (while (and @run-flag (.isRunning seqr))
             (. Thread (sleep 0))
             (reset! progress-atom (quot (* 100 (. seqr getTickPosition))
-                                   (. seqr getTickLength)))
+                                        (. seqr getTickLength)))
             (. seqr (setTempoFactor @tempo-atom)))
-          (.println System/out "Finished"))))
+           (.println System/out "Finished")))))
  
 (defn play
   [grammar tempo-atom progress-atom run-flag]

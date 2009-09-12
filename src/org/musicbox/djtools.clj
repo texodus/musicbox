@@ -11,6 +11,7 @@
            [org.musicbox GUI]
            [org.jfugue MidiRenderer MusicStringParser Pattern Player Rhythm])
   (:use [org.musicbox.composer]
+        [org.musicbox.instruments]
         [org.musicbox.midi]
         [clojure.contrib.str-utils :only (str-join)]))
  

@@ -54,6 +54,8 @@
       <arg value="org.musicbox.midi"/>
       <arg value="org.musicbox.controller"/>
       <arg value="org.musicbox.djtools" />
+      <arg value="org.musicbox.analysis" />
+      <arg value="org.musicbox.instruments" />
       <arg value="org.musicbox.genetic" />
       <arg value="org.musicbox.test.composer-test" />
     </java>

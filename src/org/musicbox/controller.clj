@@ -8,6 +8,7 @@
            [javax.swing JPanel JFrame JLabel JButton JSlider JProgressBar UIManager JRootPane]
 	   [org.musicbox GUI])
   (:require [org.musicbox.midi :as midi]
+            [org.musicbox.instruments :as instruments]
             [org.musicbox.composer :as composer])
   (:use [clojure.contrib.str-utils :only (str-join)]))
 
@@ -28,14 +29,14 @@
     (reset! run-flag true)
     (while @run-flag
       (-> 0
-          (composer/gen-pipe 
+          (instruments/gen-pipe 
            (vector (struct composer/grammar
-                           (composer/random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
+                           (instruments/random-seq [4] [1 1 1 1 1 2 2 2 2 3 4])
                            []
-                           (composer/random-seq [4] ["A0" "D0" "E0"])
+                           (instruments/random-seq [4] ["A0" "D0" "E0"])
                            []
                            false
-                           (composer/gen-piano))))
+                           (instruments/gen-piano))))
           first
           (midi/play tempo progress run-flag)))
     (reset! progress 0)))
