@@ -21,7 +21,7 @@
  
 (defn voice-string
   [voice octave]
-  (str "I[Piano] ";"I[" (voice :instrument) "] "
+  (str "I[" (voice :instrument) "] " ;"I[Synth_Bass_2] "
        (str-join \ (map #(note-string % octave) (voice :notes)))))
  
 (defn build-string

@@ -37,11 +37,18 @@
   "Gen a random voice, or partially random"
   [instrument octave children]
   [{:theme (random-seq (range 2 4) (range 1 6))
-    :rhyme (random-seq (range 2 4) (range 1 3))
-    :harmony (random-seq (range 4 5)  
-			 (concat (take 12 (drop (* octave 7) 
-						harmonic-table)) 
-				 ["R" "R"]))
+    :rhyme (random-seq (range 2 4) (range 1 5))
+    :harmony (nth [["F#3" "E3" "E3" "F#3"] 
+                   ["E3" "F#3" "E3" "F#3"] 
+                   ["E3" "Eb3" "F#3" "E3" "G#3"] 
+                   ["Eb3" "F#3" "E3" "G#3" "F#3"] 
+                   ["F#3" "E3" "G#3" "F#3" "G#3"] 
+                   ["E3" "B2" "F#3" "E3"] 
+                   ["F#3" "E3" "G#3" "F#3"] 
+                   ["E3" "G#3" "F#3" "G#3"] 
+                   ["Eb3" "F#3" "E3" "G#3"] 
+                   ["E3" "Eb3" "F#3" "E3"]]
+                  (rand-int 8))
     :emphasis (random-seq (range 2 4) (range 3 5))
     :instrument instrument
     :children children}])
@@ -76,12 +83,12 @@
  
 (defn gen-song
   []
-  (let [common-voice (first (gen-voice "Piano" 4 []))]
+  (let [common-voice (first (gen-voice "Synth_Bass_2" 4 []))]
     (concat (gen-mask 3 (vector (assoc common-voice
-                                            :children (concat (gen-mask 2 (gen-voice "Piano" 5 []))
-                                                              (gen-mask 2 (gen-mask 2 (gen-voice "Piano" 3 []))))
-                                            :instrument "Piano")))
+                                            :children (concat (gen-mask 2 (gen-voice "Synth_Bass_2" 5 []))
+                                                              (gen-mask 2 (gen-mask 2 (gen-voice "Synth_Bass_2" 3 []))))
+                                            :instrument "Synth_Bass_2")))
             (gen-mask 4 (vector (assoc common-voice
-                                            :children (gen-voice "Piano" 4 [])
+                                            :children (gen-voice "Synth_Bass_2" 4 [])
                                             :instrument false))))))
 
